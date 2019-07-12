@@ -1,0 +1,41 @@
+Watch for changes on service objects in <local cluster> with label `"tfw.io/upstreamwatcher": "true"`:
+* Add/Modify: Add or update a matching endpoint object
+    * IPs from up to date list of nodes in <remote cluster>
+    * Port from `targetPort` of service
+* Delete: Do we have to delete the endpoint object manually?
+
+Watch for changes of nodes in <remote cluster>:
+* Add: Update endpoints of service objects in <local_cluster>
+* Modify: Check if node is ready, update endpoints of services in <local cluster>
+* Delete: Update endpoints of service objects in <local cluster>
+
+
+# Terms
+* remote(-cluster) is always the cluster who's nodes are being watched
+* local(-cluster) is always the cluster to manage services/endpoints in
+
+
+# Run
+Local cluster may be specified via `local-kubeconfig` and `local-context`. If omitted, in-cluster credentials will
+be used (where possible).
+
+Remote cluster must be defined via `remote-project`, `remote-zone` and `remote-cluster-name`. Cluster credentials and
+config (API Host etc.) will then be auto generated via a Google APIs using the service account provided via the 
+environment Variable `GOOGLE_APPLICATION_CREDENTIALS`.
+
+```bash
+k8s-upstreamwatcher -v 3 \
+  -local-kubeconfig ~/.kube/config \
+  -local-context "gke_gcp-project_region-and-zone_local-cluster-name" \
+  -remote-cluster-name remote-cluster-name \
+  -resync-period 1m
+```
+
+
+# Permissions
+## Local cluster
+FIXME
+Probably needs RBAC role to read service objetcs and create service endpoint
+
+## Remote cluster
+Needs service account with "Kubernetes Engine Viewer" permission (to read node details)
