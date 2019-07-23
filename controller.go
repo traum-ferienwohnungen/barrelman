@@ -122,14 +122,12 @@ func (e *NodeEndpointController) Run(workers int, stopCh <-chan struct{}) error 
 
 	// and wait for their caches to warm up
 	if !cache.WaitForCacheSync(stopCh, e.serviceInformer.HasSynced, e.nodeInformer.HasSynced) {
-		return fmt.Errorf("Filed to wait for caches to sync")
+		return fmt.Errorf("Failed to wait for caches to sync")
 	}
 
 	for i := 0; i < workers; i++ {
 		go wait.Until(e.worker, time.Second, stopCh)
 	}
-
-	//FIXME we need to look for left over endpoints on controller crashes etc.
 
 	<-stopCh
 	return nil
@@ -253,7 +251,6 @@ func (e *NodeEndpointController) syncHandler(key string) error {
 func (e *NodeEndpointController) enqueueService(obj interface{}) {
 	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
 	if err != nil {
-		// FIXME: Couldn't get key for object 0: object has no meta: object does not implement the Object interfaces
 		klog.Errorf("Couldn't get key for object %#v: %v", obj, err)
 		return
 	}

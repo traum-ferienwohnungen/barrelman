@@ -124,7 +124,14 @@ func main() {
 	// Start the controllers
 	stop := make(chan struct{})
 	defer close(stop)
-	go controller.Run(1, stop)
+
+	var runErr error
+	go func() {
+		runErr = controller.Run(1, stop)
+	}()
+	if runErr != nil {
+		klog.Fatal(err)
+	}
 
 	// Register http handler for metrics and readiness/liveness probe
 	http.Handle("/metrics", promhttp.Handler())
