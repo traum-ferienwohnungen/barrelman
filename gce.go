@@ -5,6 +5,8 @@ import (
 	"encoding/base64"
 	"fmt"
 
+	"google.golang.org/api/option"
+
 	"k8s.io/client-go/tools/clientcmd/api"
 
 	"golang.org/x/oauth2/google"
@@ -26,7 +28,7 @@ func NewGKEClientset(project, zone, clusterName string) (*kubernetes.Clientset, 
 		return nil, fmt.Errorf("Could not get authenticated client: %v", err)
 	}
 
-	containerService, err := container.New(hc)
+	containerService, err := container.NewService(ctx, option.WithHTTPClient(hc))
 	if err != nil {
 		return nil, fmt.Errorf("Could not initialize gke client: %v", err)
 	}
@@ -41,7 +43,7 @@ func NewGKEClientset(project, zone, clusterName string) (*kubernetes.Clientset, 
 func NewClientsetFromGKECluster(cluster *container.Cluster) (*kubernetes.Clientset, error) {
 	decodedClusterCaCertificate, err := base64.StdEncoding.DecodeString(cluster.MasterAuth.ClusterCaCertificate)
 	if err != nil {
-		return nil, fmt.Errorf("decode cluster CA certificate error:", err)
+		return nil, fmt.Errorf("decode cluster CA certificate error: %v", err)
 	}
 
 	config := &rest.Config{
