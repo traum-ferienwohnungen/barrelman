@@ -1,14 +1,13 @@
-module k8s-upstreamwatcher
+module barrelman
 
 go 1.12
 
 require (
-	github.com/google/go-cmp v0.3.0
+	github.com/golang/groupcache v0.0.0-20190702054246-869f871628b6 // indirect
 	github.com/google/gofuzz v1.0.0 // indirect
 	github.com/googleapis/gnostic v0.2.0 // indirect
 	github.com/imdario/mergo v0.3.7 // indirect
 	github.com/prometheus/client_golang v0.9.4
-	github.com/rogpeppe/rog-go v0.0.0-20150110162453-f57ad5e24ab7
 	github.com/spf13/pflag v1.0.3 // indirect
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4 // indirect

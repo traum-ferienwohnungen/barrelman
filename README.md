@@ -12,7 +12,7 @@ config (API Host etc.) will then be auto generated via a Google APIs using the s
 environment Variable `GOOGLE_APPLICATION_CREDENTIALS`.
 
 ```bash
-k8s-upstreamwatcher -v 3 \
+barrelman -v 3 \
   -local-kubeconfig ~/.kube/config \
   -local-context "gke_gcp-project_region-and-zone_local-cluster-name" \
   -remote-cluster-name remote-cluster-name \
@@ -20,7 +20,7 @@ k8s-upstreamwatcher -v 3 \
 ```
 
 
-# Permissions`"tfw.io/upstreamwatcher": "true"`:
+# Permissions:
 ## Local cluster
 FIXME
 Probably needs RBAC role to read service objetcs and create service endpoint
@@ -30,7 +30,7 @@ Needs service account with "Kubernetes Engine Viewer" permission (to read node d
 
 
 # What it does
-This only handles service objects labeled with `"tfw.io/upstreamwatcher": "true"`.
+This only handles service objects labeled with `"tfw.io/barrelman": "true"`.
 
 Watch for changes on service objects in _local-cluster_:
 * Add/Modify: Add or update a matching endpoint object

@@ -31,7 +31,7 @@ var (
 
 	// Prometheus metrics
 	nodesCount = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "upstreamwatcher_current_nodes_count",
+		Name: "barrelman_current_nodes_count",
 		Help: "Count of nodes in watched cluster.",
 	})
 )
