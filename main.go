@@ -30,6 +30,10 @@ var (
 	remoteClusterName = flag.String("remote-cluster-name", "", "Remote clusters name")
 	resyncPeriod      = flag.Duration("resync-period", 2*time.Hour, "how often should all nodes be considered \"old\" (and processed again)")
 
+	// Kubernetes label set to identify barrelman controlled services
+	serviceLabel         = map[string]string{"tfw.io/barrelman": "true"}
+	serviceLabelSelector = labels.Set(serviceLabel).AsSelector()
+
 	// Prometheus metrics
 	nodesCount = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "barrelman_current_nodes_count",
@@ -109,8 +113,6 @@ func main() {
 	// create the clientsets
 	localClientset := getLocalClientset()
 	remoteClientset := getRemoteClientset()
-
-	serviceLabelSelector := labels.Set(map[string]string{"tfw.io/barrelman": "true"}).AsSelector()
 
 	lservices, err := localClientset.CoreV1().Services("").List(metaV1.ListOptions{
 		LabelSelector: serviceLabelSelector.String(),

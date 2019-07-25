@@ -33,9 +33,6 @@ type NodeEndpointController struct {
 	serviceSynced, nodeSynced cache.InformerSynced
 	// queue will queue all services whose endpoints may need updates
 	queue workqueue.RateLimitingInterface
-
-	// serviceLabelSelector contains the label selector services are filtered for
-	serviceLabelSelector labels.Selector
 }
 
 func NewNodeEndpointController(
@@ -44,10 +41,9 @@ func NewNodeEndpointController(
 	nodeInformer coreinformers.NodeInformer) *NodeEndpointController {
 
 	e := &NodeEndpointController{
-		localClient:          localClient,
-		remoteClient:         remoteClient,
-		serviceLabelSelector: labels.Set(map[string]string{"tfw.io/barrelman": "true"}).AsSelector(),
-		queue:                workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "NodeEndpoints"),
+		localClient:  localClient,
+		remoteClient: remoteClient,
+		queue:        workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "NodeEndpoints"),
 	}
 
 	e.serviceLister = serviceInformer.Lister()
@@ -94,18 +90,20 @@ func (e *NodeEndpointController) Run(workers int, stopCh <-chan struct{}) error 
 	defer e.queue.ShutDown()
 
 	klog.Infof("Starting NodeEndpointController")
-	defer klog.Infof("Shutting down NodeEndpointController")
 
 	// and wait for their caches to warm up
+	klog.Info("Waiting for informer caches to warm up")
 	if !cache.WaitForCacheSync(stopCh, e.serviceSynced, e.nodeSynced) {
 		return fmt.Errorf("Failed to wait for caches to sync")
 	}
 
+	klog.Infof("Starting %d workers", workers)
 	for i := 0; i < workers; i++ {
 		go wait.Until(e.worker, time.Second, stopCh)
 	}
 
 	<-stopCh
+	klog.Infof("Shutting down workers")
 	return nil
 }
 
@@ -241,7 +239,8 @@ func (e *NodeEndpointController) enqueueService(obj interface{}) {
 
 // enqueueAllServices add all services to the queue
 func (e *NodeEndpointController) enqueueAllServices() {
-	services, err := e.serviceLister.List(e.serviceLabelSelector)
+	// serviceLister is already filtered, so we can use an empty label filter here
+	services, err := e.serviceLister.List(labels.Everything())
 	if err != nil {
 		klog.Infof("No services to enqueue")
 		return
