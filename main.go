@@ -157,16 +157,20 @@ func main() {
 	httpServer := &http.Server{Addr: *addr}
 	go func() {
 		// Launch HTTP server
-		httpServer.ListenAndServe()
+		_ = httpServer.ListenAndServe()
 	}()
 
+	// Launch the controller.
+	// This will block 'till stopCh
 	if err = controller.Run(2, stopCh); err != nil {
 		klog.Fatalf("Error running controller: %s", err.Error())
 	}
 
-	// Stop HTTP server
-	ctx, _ := context.WithTimeout(context.Background(), time.Microsecond)
+	// Gracefully stop HTTP server
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	if err := httpServer.Shutdown(ctx); err != nil {
 		klog.Fatalf("Error stopping HTTP server: %v", err)
 	}
+	// Make sure context is canceled in any case to make linter happy
+	cancel()
 }
