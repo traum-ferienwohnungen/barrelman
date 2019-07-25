@@ -6,7 +6,7 @@ MGOPATH := $(shell go env GOPATH)
 
 all: build
 
-lint: ## Run lint
+lint: $(MGOPATH)/bin/golangci-lint ## Run lint
 	@golangci-lint run
 
 test: ## Run unittests
@@ -22,10 +22,10 @@ msan: dep ## Run memory sanitizer
 testall: test race msan ## Run all tests
 
 coverage: ## Generate global code coverage report
-	./tools/coverage.sh;
+	./coverage.sh;
 
 coverhtml: ## Generate global code coverage report in HTML
-	./tools/coverage.sh html;
+	./coverage.sh html;
 
 dep: $(MGOPATH)/bin/golangci-lint ## Get the dependencies
 	@go get -v -d ./...
