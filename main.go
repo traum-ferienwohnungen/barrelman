@@ -1,16 +1,18 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"net/http"
 	"os"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -147,19 +149,24 @@ func main() {
 	localInformerFactory.Start(stopCh)
 	remoteInformerFactory.Start(stopCh)
 
-	var runErr error
-	go func() {
-		runErr = controller.Run(1, stopCh)
-	}()
-	if runErr != nil {
-		klog.Fatal(err)
-	}
-
 	// Register http handler for metrics and readiness/liveness probe
 	http.Handle("/metrics", promhttp.Handler())
 	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = fmt.Fprint(w, "OK")
 	})
-	// Launch HTTP server
-	klog.Fatal(http.ListenAndServe(*addr, nil))
+	httpServer := &http.Server{Addr: *addr}
+	go func() {
+		// Launch HTTP server
+		httpServer.ListenAndServe()
+	}()
+
+	if err = controller.Run(2, stopCh); err != nil {
+		klog.Fatalf("Error running controller: %s", err.Error())
+	}
+
+	// Stop HTTP server
+	ctx, _ := context.WithTimeout(context.Background(), time.Microsecond)
+	if err := httpServer.Shutdown(ctx); err != nil {
+		klog.Fatalf("Error stopping HTTP server: %v", err)
+	}
 }
