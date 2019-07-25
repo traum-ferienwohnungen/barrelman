@@ -12,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/client-go/rest"
@@ -102,12 +103,17 @@ func getRemoteClientset() *kubernetes.Clientset {
 func main() {
 	flag.Parse()
 
+	// set up signals so we handle the first shutdown signal gracefully
+	stopCh := SetupSignalHandler()
+
 	// create the clientsets
 	localClientset := getLocalClientset()
 	remoteClientset := getRemoteClientset()
 
+	serviceLabelSelector := labels.Set(map[string]string{"tfw.io/barrelman": "true"}).AsSelector()
+
 	lservices, err := localClientset.CoreV1().Services("").List(metaV1.ListOptions{
-		LabelSelector: labels.Set(map[string]string{"tfw.io/upstreamwacher": "true"}).AsSelector().String(),
+		LabelSelector: serviceLabelSelector.String(),
 	})
 	if err != nil {
 		klog.Fatal(err)
@@ -119,15 +125,29 @@ func main() {
 	}
 	klog.Infof("%d nodes in remote\n", len(rnodes.Items))
 
-	controller := NewNodeEndpointController(localClientset, remoteClientset, *resyncPeriod)
+	localInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(
+		localClientset,
+		*resyncPeriod,
+		kubeinformers.WithTweakListOptions(func(options *metaV1.ListOptions) {
+			options.LabelSelector = serviceLabelSelector.String()
+		}),
+	)
+	remoteInformerFactory := kubeinformers.NewSharedInformerFactory(remoteClientset, *resyncPeriod)
 
-	// Start the controllers
-	stop := make(chan struct{})
-	defer close(stop)
+	controller := NewNodeEndpointController(
+		localClientset, remoteClientset,
+		localInformerFactory.Core().V1().Services(),
+		remoteInformerFactory.Core().V1().Nodes(),
+	)
+
+	// Ramp up the informer loops
+	// They run all registered informer in go routines
+	localInformerFactory.Start(stopCh)
+	remoteInformerFactory.Start(stopCh)
 
 	var runErr error
 	go func() {
-		runErr = controller.Run(1, stop)
+		runErr = controller.Run(1, stopCh)
 	}()
 	if runErr != nil {
 		klog.Fatal(err)

@@ -7,11 +7,13 @@ import (
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
+	coreinformers "k8s.io/client-go/informers/core/v1"
+
 	"k8s.io/client-go/kubernetes"
+	corelisters "k8s.io/client-go/listers/core/v1"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -20,47 +22,39 @@ import (
 
 type NodeEndpointController struct {
 	// localClient is the k8s Clientset for the local cluster (where we update service endpoints)
-	localClient *kubernetes.Clientset
+	localClient kubernetes.Interface
 
 	// remoteClient is the k8s Clientset fot the remote cluster (which we watch for node changes)
-	remoteClient *kubernetes.Clientset
+	remoteClient kubernetes.Interface
 
 	// Informer and Indexer for services and nodes
-	serviceInformer, nodeInformer cache.Controller
-	serviceIndexer, nodeIndexer   cache.Indexer
-
+	serviceLister             corelisters.ServiceLister
+	nodeLister                corelisters.NodeLister
+	serviceSynced, nodeSynced cache.InformerSynced
 	// queue will queue all services whose endpoints may need updates
 	queue workqueue.RateLimitingInterface
 
 	// serviceLabelSelector contains the label selector services are filtered for
 	serviceLabelSelector labels.Selector
-
-	// resyncPeriod is the time between full resyncs
-	// e.g. all node and services will be considered "new"
-	resyncPeriod time.Duration
 }
 
-func NewNodeEndpointController(localClient, remoteClient *kubernetes.Clientset, resyncPeriod time.Duration) *NodeEndpointController {
+func NewNodeEndpointController(
+	localClient, remoteClient kubernetes.Interface,
+	serviceInformer coreinformers.ServiceInformer,
+	nodeInformer coreinformers.NodeInformer) *NodeEndpointController {
+
 	e := &NodeEndpointController{
 		localClient:          localClient,
 		remoteClient:         remoteClient,
-		serviceLabelSelector: labels.Set(map[string]string{"tfw.io/upstreamwacher": "true"}).AsSelector(),
-		resyncPeriod:         resyncPeriod,
+		serviceLabelSelector: labels.Set(map[string]string{"tfw.io/barrelman": "true"}).AsSelector(),
 		queue:                workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "NodeEndpoints"),
 	}
 
-	// Build indexer and informer for service objets (local cluster)
-	serviceListWatcher := cache.NewFilteredListWatchFromClient(
-		e.localClient.CoreV1().RESTClient(),
-		"services",
-		v1.NamespaceAll,
-		func(options *metaV1.ListOptions) {
-			options.LabelSelector = e.serviceLabelSelector.String()
-		},
-	)
+	e.serviceLister = serviceInformer.Lister()
+	e.serviceSynced = serviceInformer.Informer().HasSynced
 
 	// Just queue all service events
-	serviceHandlerFuncs := cache.ResourceEventHandlerFuncs{
+	serviceInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			service := obj.(*v1.Service)
 			klog.Infof("ADD for Service %s/%s", service.GetNamespace(), service.GetName())
@@ -81,30 +75,16 @@ func NewNodeEndpointController(localClient, remoteClient *kubernetes.Clientset, 
 			klog.Infof("DELETE for Service %s/%s", service.GetNamespace(), service.GetName())
 			e.enqueueService(obj)
 		},
-	}
-	serviceIndexer, serviceInformer := cache.NewIndexerInformer(
-		serviceListWatcher, &v1.Service{}, e.resyncPeriod, serviceHandlerFuncs, cache.Indexers{},
-	)
-	e.serviceInformer = serviceInformer
-	e.serviceIndexer = serviceIndexer
+	})
 
-	// Build indexer and informer for node objects (remote cluster=
-	nodeListWatcher := cache.NewListWatchFromClient(
-		e.remoteClient.CoreV1().RESTClient(),
-		"nodes",
-		v1.NamespaceAll,
-		fields.Everything(),
-	)
-	nodeHandlerFuncs := cache.ResourceEventHandlerFuncs{
+	e.nodeLister = nodeInformer.Lister()
+	e.nodeSynced = nodeInformer.Informer().HasSynced
+
+	nodeInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    e.addNode,
 		UpdateFunc: e.updateNode,
 		DeleteFunc: e.deleteNode,
-	}
-	nodeIndexer, nodeInformer := cache.NewIndexerInformer(
-		nodeListWatcher, &v1.Node{}, e.resyncPeriod, nodeHandlerFuncs, cache.Indexers{},
-	)
-	e.nodeInformer = nodeInformer
-	e.nodeIndexer = nodeIndexer
+	})
 
 	return e
 }
@@ -116,12 +96,8 @@ func (e *NodeEndpointController) Run(workers int, stopCh <-chan struct{}) error 
 	klog.Infof("Starting NodeEndpointController")
 	defer klog.Infof("Shutting down NodeEndpointController")
 
-	// Ramp up the informer loops
-	go e.serviceInformer.Run(stopCh)
-	go e.nodeInformer.Run(stopCh)
-
 	// and wait for their caches to warm up
-	if !cache.WaitForCacheSync(stopCh, e.serviceInformer.HasSynced, e.nodeInformer.HasSynced) {
+	if !cache.WaitForCacheSync(stopCh, e.serviceSynced, e.nodeSynced) {
 		return fmt.Errorf("Failed to wait for caches to sync")
 	}
 
@@ -194,26 +170,32 @@ func (e *NodeEndpointController) processNextItem() bool {
 // In case an error happened, it has to simply return the error.
 // The retry logic should not be part of the business logic.
 func (e *NodeEndpointController) syncHandler(key string) error {
-	obj, exists, err := e.serviceIndexer.GetByKey(key)
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
-		klog.Errorf("Fetching object with key %s from store failed with %v", key, err)
-		return err
-	}
-
-	if !exists {
-		// Below we will warm up our cache, so that we will see a delete for objects
-		klog.Warningf("Object %s does not exist (anymore?)", key)
+		runtime.HandleError(fmt.Errorf("invalid resource key: %s", key))
 		return nil
 	}
 
-	klog.Infof("Working on stuff...")
+	// Get the service resource from lister
+	service, err := e.serviceLister.Services(namespace).Get(name)
+	if err != nil {
+		// The resource may no longer exist, in which case we stop processing.
+		if errors.IsNotFound(err) {
+			runtime.HandleError(fmt.Errorf("service '%s' in work queue no longer exists", key))
+			return nil
+		}
+
+		return err
+	}
+	klog.Infof("Working on stuff... %#v", key)
 	defer klog.Infof("syncHandler done")
 
-	service := obj.(*v1.Service)
-	namespace := service.GetNamespace()
-	nodes := e.nodeIndexer.List()
+	nodes, err := e.nodeLister.List(labels.Everything())
+	if err != nil {
+		runtime.HandleError(fmt.Errorf("error listing nodes in remote cluster: %#v", err))
+	}
 
-	endpoint, err := e.localClient.CoreV1().Endpoints(namespace).Get(service.GetName(), metaV1.GetOptions{})
+	endpoint, err := e.localClient.CoreV1().Endpoints(namespace).Get(name, metaV1.GetOptions{})
 	if err != nil {
 		// Check if endpoint object (same name as service) exists
 		if errors.IsNotFound(err) {
@@ -249,9 +231,9 @@ func (e *NodeEndpointController) syncHandler(key string) error {
 
 // enqueueService adds a service (key) to the queue
 func (e *NodeEndpointController) enqueueService(obj interface{}) {
-	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
+	key, err := cache.MetaNamespaceKeyFunc(obj)
 	if err != nil {
-		klog.Errorf("Couldn't get key for object %#v: %v", obj, err)
+		runtime.HandleError(err)
 		return
 	}
 	e.queue.Add(key)
@@ -259,12 +241,15 @@ func (e *NodeEndpointController) enqueueService(obj interface{}) {
 
 // enqueueAllServices add all services to the queue
 func (e *NodeEndpointController) enqueueAllServices() {
-	var c int
-	for _, s := range e.serviceIndexer.List() {
-		e.enqueueService(s)
-		c++
+	services, err := e.serviceLister.List(e.serviceLabelSelector)
+	if err != nil {
+		klog.Infof("No services to enqueue")
+		return
 	}
-	klog.Infof("Enqueued %d services", c)
+	for _, s := range services {
+		e.enqueueService(s)
+	}
+	klog.Infof("Enqueued %d services", len(services))
 }
 
 func (e *NodeEndpointController) addNode(obj interface{}) {

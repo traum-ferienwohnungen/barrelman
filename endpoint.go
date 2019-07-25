@@ -24,11 +24,10 @@ func endpointPorts(service *v1.Service) ([]v1.EndpointPort, error) {
 	return endpointPorts, nil
 }
 
-func endpointAdresses(nodes []interface{}) []v1.EndpointAddress {
+func endpointAdresses(nodes []*v1.Node) []v1.EndpointAddress {
 	var endpointAddresses []v1.EndpointAddress
 
-	for _, obj := range nodes {
-		node := obj.(*v1.Node)
+	for _, node := range nodes {
 		if !isNodeReady(node) {
 			continue
 		}
@@ -48,7 +47,7 @@ func endpointAdresses(nodes []interface{}) []v1.EndpointAddress {
 	return endpointAddresses
 }
 
-func endpointSubset(service *v1.Service, nodes []interface{}) ([]v1.EndpointSubset, error) {
+func endpointSubset(service *v1.Service, nodes []*v1.Node) ([]v1.EndpointSubset, error) {
 	epPorts, err := endpointPorts(service)
 	if err != nil {
 		return nil, err
@@ -67,7 +66,7 @@ func endpointSubset(service *v1.Service, nodes []interface{}) ([]v1.EndpointSubs
 }
 
 // NewEndPoints creates a new Endpoints object for the given service
-func NewEndpoint(service *v1.Service, nodes []interface{}) (*v1.Endpoints, error) {
+func NewEndpoint(service *v1.Service, nodes []*v1.Node) (*v1.Endpoints, error) {
 	epSubset, err := endpointSubset(service, nodes)
 	if err != nil {
 		return nil, err
@@ -77,7 +76,7 @@ func NewEndpoint(service *v1.Service, nodes []interface{}) (*v1.Endpoints, error
 		ObjectMeta: metaV1.ObjectMeta{
 			Name:      service.GetName(),
 			Namespace: service.GetNamespace(),
-			Labels:    map[string]string{"tfw.io/upstreamwacher": "true"},
+			Labels:    map[string]string{"tfw.io/barrelman": "true"},
 		},
 		Subsets: epSubset,
 	}
