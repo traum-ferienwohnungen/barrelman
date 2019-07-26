@@ -7,7 +7,7 @@ MGOPATH := $(shell go env GOPATH)
 all: build
 
 lint: $(MGOPATH)/bin/golangci-lint ## Run lint
-	@golangci-lint run
+	@golangci-lint run --deadline 2m
 
 test: ## Run unittests
 	@go test ${PKG_LIST}
