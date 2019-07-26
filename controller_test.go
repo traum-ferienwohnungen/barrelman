@@ -18,6 +18,13 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+const (
+	serviceName      = "foo-name"
+	serviceNamespace = "foo-namespace"
+	portName         = "foo-port"
+	portNum          = 12345
+)
+
 var (
 	alwaysReady        = func() bool { return true }
 	noResyncPeriodFunc = func() time.Duration { return 0 }
@@ -34,8 +41,8 @@ type fixture struct {
 	nodeLister    []*v1.Node
 
 	// Actions expected to happen on the client(s).
-	localActions  []core.Action
-	remoteActions []core.Action
+	localExpectedActions  []core.Action
+	remoteExpectedActions []core.Action
 
 	// Objects from here will be preloaded into informers
 	localObjects  []runtime.Object
@@ -85,11 +92,11 @@ func (f *fixture) newController() (*NodeEndpointController, kubeinformers.Shared
 	return c, serviceInformer, nodeInformer
 }
 
-func (f *fixture) run(fooName string) {
-	f.runController(fooName, false)
+func (f *fixture) run(serviceName string) {
+	f.runController(serviceName, false)
 }
 
-func (f *fixture) runController(fooName string, expectError bool) {
+func (f *fixture) runController(serviceName string, expectError bool) {
 	c, sI, nI := f.newController()
 
 	stopCh := make(chan struct{})
@@ -97,7 +104,7 @@ func (f *fixture) runController(fooName string, expectError bool) {
 	sI.Start(stopCh)
 	nI.Start(stopCh)
 
-	err := c.syncHandler(fooName)
+	err := c.syncHandler(serviceName)
 	if !expectError && err != nil {
 		f.t.Errorf("error syncing foo: %v", err)
 	} else if expectError && err == nil {
@@ -106,32 +113,32 @@ func (f *fixture) runController(fooName string, expectError bool) {
 
 	localActions := filterInformerActions(f.localClient.Actions())
 	for i, action := range localActions {
-		if len(f.localActions) < i+1 {
-			f.t.Errorf("%d unexpected localActions: %+v", len(localActions)-len(f.localActions), localActions[i:])
+		if len(f.localExpectedActions) < i+1 {
+			f.t.Errorf("%d unexpected localExpectedActions: %+v", len(localActions)-len(f.localExpectedActions), localActions[i:])
 			break
 		}
 
-		expectedAction := f.localActions[i]
+		expectedAction := f.localExpectedActions[i]
 		checkAction(expectedAction, action, f.t)
 	}
 
-	if len(f.localActions) > len(localActions) {
-		f.t.Errorf("%d additional expected localActions:%+v", len(f.localActions)-len(localActions), f.localActions[len(localActions):])
+	if len(f.localExpectedActions) > len(localActions) {
+		f.t.Errorf("%d additional expected localExpectedActions:%+v", len(f.localExpectedActions)-len(localActions), f.localExpectedActions[len(localActions):])
 	}
 
 	remoteActions := filterInformerActions(f.remoteClient.Actions())
 	for i, action := range remoteActions {
-		if len(f.remoteActions) < i+1 {
-			f.t.Errorf("%d unexpected actions: %+v", len(remoteActions)-len(f.remoteActions), remoteActions[i:])
+		if len(f.remoteExpectedActions) < i+1 {
+			f.t.Errorf("%d unexpected actions: %+v", len(remoteActions)-len(f.remoteExpectedActions), remoteActions[i:])
 			break
 		}
 
-		expectedAction := f.remoteActions[i]
+		expectedAction := f.remoteExpectedActions[i]
 		checkAction(expectedAction, action, f.t)
 	}
 
-	if len(f.remoteActions) > len(remoteActions) {
-		f.t.Errorf("%d additional expected actions:%+v", len(f.remoteActions)-len(remoteActions), f.remoteActions[len(remoteActions):])
+	if len(f.remoteExpectedActions) > len(remoteActions) {
+		f.t.Errorf("%d additional expected actions:%+v", len(f.remoteExpectedActions)-len(remoteActions), f.remoteExpectedActions[len(remoteActions):])
 	}
 }
 
@@ -199,15 +206,15 @@ func filterInformerActions(actions []core.Action) []core.Action {
 }
 
 func (f *fixture) expectCreateEndpointAction(e *v1.Endpoints) {
-	f.localActions = append(
-		f.localActions,
+	f.localExpectedActions = append(
+		f.localExpectedActions,
 		core.NewCreateAction(schema.GroupVersionResource{Resource: "endpoints"}, e.Namespace, e),
 	)
 }
 
 func (f *fixture) expectUpdateEndpointAction(e *v1.Endpoints) {
-	f.localActions = append(
-		f.localActions,
+	f.localExpectedActions = append(
+		f.localExpectedActions,
 		core.NewUpdateAction(schema.GroupVersionResource{Resource: "endpoints"}, e.Namespace, e),
 	)
 }
@@ -253,18 +260,18 @@ func newNode(internalIP string, ready bool) *v1.Node {
 	return node
 }
 
-func newService(name string, namespace string) *v1.Service {
+func newService() *v1.Service {
 	service := &v1.Service{
 		ObjectMeta: metaV1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
+			Name:      serviceName,
+			Namespace: serviceNamespace,
 			Labels:    serviceLabel,
 		},
 		Spec: v1.ServiceSpec{
 			Ports: []v1.ServicePort{
 				{
-					Name: "foo-port",
-					Port: 12345,
+					Name: portName,
+					Port: portNum,
 				},
 			},
 		},
@@ -272,15 +279,15 @@ func newService(name string, namespace string) *v1.Service {
 	return service
 }
 
-func newEndpoint(name string, namespace string, nodeIPs []string) *v1.Endpoints {
+func newEndpoint(nodeIPs []string) *v1.Endpoints {
 	var epAddresses []v1.EndpointAddress
 	for _, ip := range nodeIPs {
 		epAddresses = append(epAddresses, v1.EndpointAddress{IP: ip})
 	}
 	expEndpoint := &v1.Endpoints{
 		ObjectMeta: metaV1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
+			Name:      serviceName,
+			Namespace: serviceNamespace,
 			Labels:    serviceLabel,
 		},
 		Subsets: []v1.EndpointSubset{
@@ -288,8 +295,8 @@ func newEndpoint(name string, namespace string, nodeIPs []string) *v1.Endpoints 
 				Addresses: epAddresses,
 				Ports: []v1.EndpointPort{
 					{
-						Port: 12345,
-						Name: "foo-port",
+						Port: portNum,
+						Name: portName,
 					},
 				},
 			},
@@ -299,15 +306,13 @@ func newEndpoint(name string, namespace string, nodeIPs []string) *v1.Endpoints 
 }
 
 func TestCreatesEndpoint(t *testing.T) {
-	namespace := "foo-namespace"
-	name := "foo-name"
 	f := newFixture(t)
 
 	nodeIP := randomdata.IpV4Address()
 	node := newNode(nodeIP, true)
 
-	service := newService(name, namespace)
-	expEndpoint := newEndpoint(name, namespace, []string{nodeIP})
+	service := newService()
+	expEndpoint := newEndpoint([]string{nodeIP})
 
 	f.serviceLister = append(f.serviceLister, service)
 	f.localObjects = append(f.localObjects, service)
@@ -320,8 +325,6 @@ func TestCreatesEndpoint(t *testing.T) {
 }
 
 func TestAddNewNode(t *testing.T) {
-	namespace := "foo-namespace"
-	name := "foo-name"
 	f := newFixture(t)
 
 	node1IP := randomdata.IpV4Address()
@@ -329,15 +332,15 @@ func TestAddNewNode(t *testing.T) {
 	f.nodeLister = append(f.nodeLister, node1)
 	f.remoteObjects = append(f.remoteObjects, node1)
 
-	service := newService(name, namespace)
+	service := newService()
 	f.serviceLister = append(f.serviceLister, service)
 	f.localObjects = append(f.localObjects, service)
 
 	// Cluster contains an endpoint with no node IP
-	endpoint := newEndpoint(name, namespace, []string{})
+	endpoint := newEndpoint([]string{})
 	f.localObjects = append(f.localObjects, endpoint)
 
-	expEndpoint := newEndpoint(name, namespace, []string{node1IP})
+	expEndpoint := newEndpoint([]string{node1IP})
 	f.expectUpdateEndpointAction(expEndpoint)
 
 	f.run(getKey(service, t))
