@@ -96,6 +96,26 @@ func (f *fixture) run(serviceName string) {
 	f.runController(serviceName, false)
 }
 
+func (f *fixture) runControllerQueue(expectError bool) {
+	c, sI, nI := f.newController()
+
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	sI.Start(stopCh)
+	nI.Start(stopCh)
+
+	c.enqueueAllServices()
+	items := c.queue.Len()
+	f.t.Logf("%d items in queue", items)
+	for i := 1; i <= items; i++ {
+		f.t.Logf("processing an item")
+		c.processNextItem()
+
+	}
+
+	f.checkActions()
+}
+
 func (f *fixture) runController(serviceName string, expectError bool) {
 	c, sI, nI := f.newController()
 
@@ -111,6 +131,10 @@ func (f *fixture) runController(serviceName string, expectError bool) {
 		f.t.Error("expected error syncing foo, got nil")
 	}
 
+	f.checkActions()
+}
+
+func (f *fixture) checkActions() {
 	localActions := filterInformerActions(f.localClient.Actions())
 	for i, action := range localActions {
 		if len(f.localExpectedActions) < i+1 {
@@ -355,4 +379,29 @@ func TestAddNewNode(t *testing.T) {
 	f.expectUpdateEndpointAction(expEndpoint)
 
 	f.run(getKey(service, t))
+}
+
+func TestBunchOfServices(t *testing.T) {
+	f := newFixture(t)
+
+	nodeIP := randomdata.IpV4Address()
+	node := newNode(nodeIP, true)
+	f.nodeLister = append(f.nodeLister, node)
+	f.remoteObjects = append(f.remoteObjects, node)
+
+	service := newService()
+	f.serviceLister = append(f.serviceLister, service)
+	f.localObjects = append(f.localObjects, service)
+	service2 := newService()
+	service2.Name += "2"
+	f.serviceLister = append(f.serviceLister, service2)
+	f.localObjects = append(f.localObjects, service2)
+
+	expEndpoint := newEndpoint([]string{nodeIP})
+	f.expectCreateEndpointAction(expEndpoint)
+	expEndpoint2 := newEndpoint([]string{nodeIP})
+	expEndpoint2.Name += "2"
+	f.expectCreateEndpointAction(expEndpoint2)
+
+	f.runControllerQueue(false)
 }
