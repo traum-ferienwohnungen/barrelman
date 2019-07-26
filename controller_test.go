@@ -7,6 +7,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/Pallinder/go-randomdata"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -204,6 +205,13 @@ func (f *fixture) expectCreateEndpointAction(e *v1.Endpoints) {
 	)
 }
 
+func (f *fixture) expectUpdateEndpointAction(e *v1.Endpoints) {
+	f.localActions = append(
+		f.localActions,
+		core.NewUpdateAction(schema.GroupVersionResource{Resource: "endpoints"}, e.Namespace, e),
+	)
+}
+
 func getKey(foo *v1.Service, t *testing.T) string {
 	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(foo)
 	if err != nil {
@@ -213,25 +221,27 @@ func getKey(foo *v1.Service, t *testing.T) string {
 	return key
 }
 
-func TestCreatesEndpoint(t *testing.T) {
-	namespace := "foo-namespace"
-	name := "foo-name"
+func newNode(internalIP string, ready bool) *v1.Node {
+	nodeReady := v1.ConditionFalse
+	if ready {
+		nodeReady = v1.ConditionTrue
+	}
 
 	node := &v1.Node{
 		ObjectMeta: metaV1.ObjectMeta{
-			Name: "foo-node",
+			Name: randomdata.SillyName(),
 		},
 		Status: v1.NodeStatus{
 			Addresses: []v1.NodeAddress{
 				{
 					Type:    v1.NodeInternalIP,
-					Address: "10.11.12.13",
+					Address: internalIP,
 				},
 			},
 			Conditions: []v1.NodeCondition{
 				{
 					Type:   v1.NodeReady,
-					Status: v1.ConditionTrue,
+					Status: nodeReady,
 				},
 				{
 					Type:   v1.NodeNetworkUnavailable,
@@ -240,7 +250,10 @@ func TestCreatesEndpoint(t *testing.T) {
 			},
 		},
 	}
+	return node
+}
 
+func newService(name string, namespace string) *v1.Service {
 	service := &v1.Service{
 		ObjectMeta: metaV1.ObjectMeta{
 			Name:      name,
@@ -256,7 +269,14 @@ func TestCreatesEndpoint(t *testing.T) {
 			},
 		},
 	}
+	return service
+}
 
+func newEndpoint(name string, namespace string, nodeIPs []string) *v1.Endpoints {
+	var epAddresses []v1.EndpointAddress
+	for _, ip := range nodeIPs {
+		epAddresses = append(epAddresses, v1.EndpointAddress{IP: ip})
+	}
 	expEndpoint := &v1.Endpoints{
 		ObjectMeta: metaV1.ObjectMeta{
 			Name:      name,
@@ -265,11 +285,7 @@ func TestCreatesEndpoint(t *testing.T) {
 		},
 		Subsets: []v1.EndpointSubset{
 			{
-				Addresses: []v1.EndpointAddress{
-					{
-						IP: "10.11.12.13",
-					},
-				},
+				Addresses: epAddresses,
 				Ports: []v1.EndpointPort{
 					{
 						Port: 12345,
@@ -279,8 +295,19 @@ func TestCreatesEndpoint(t *testing.T) {
 			},
 		},
 	}
+	return expEndpoint
+}
 
+func TestCreatesEndpoint(t *testing.T) {
+	namespace := "foo-namespace"
+	name := "foo-name"
 	f := newFixture(t)
+
+	nodeIP := randomdata.IpV4Address()
+	node := newNode(nodeIP, true)
+
+	service := newService(name, namespace)
+	expEndpoint := newEndpoint(name, namespace, []string{nodeIP})
 
 	f.serviceLister = append(f.serviceLister, service)
 	f.localObjects = append(f.localObjects, service)
@@ -288,6 +315,30 @@ func TestCreatesEndpoint(t *testing.T) {
 	f.remoteObjects = append(f.remoteObjects, node)
 
 	f.expectCreateEndpointAction(expEndpoint)
+
+	f.run(getKey(service, t))
+}
+
+func TestAddNewNode(t *testing.T) {
+	namespace := "foo-namespace"
+	name := "foo-name"
+	f := newFixture(t)
+
+	node1IP := randomdata.IpV4Address()
+	node1 := newNode(node1IP, true)
+	f.nodeLister = append(f.nodeLister, node1)
+	f.remoteObjects = append(f.remoteObjects, node1)
+
+	service := newService(name, namespace)
+	f.serviceLister = append(f.serviceLister, service)
+	f.localObjects = append(f.localObjects, service)
+
+	// Cluster contains an endpoint with no node IP
+	endpoint := newEndpoint(name, namespace, []string{})
+	f.localObjects = append(f.localObjects, endpoint)
+
+	expEndpoint := newEndpoint(name, namespace, []string{node1IP})
+	f.expectUpdateEndpointAction(expEndpoint)
 
 	f.run(getKey(service, t))
 }
