@@ -27,7 +27,7 @@ func isNodeReady(node *v1.Node) bool {
 			if c.Status == v1.ConditionTrue {
 				ready = true
 			}
-		case v1.NodeMemoryPressure, v1.NodeDiskPressure, v1.NodePIDPressure, v1.NodeNetworkUnavailable:
+		case v1.NodeNetworkUnavailable:
 			if c.Status != v1.ConditionFalse {
 				ready = false
 			}

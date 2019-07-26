@@ -310,14 +310,17 @@ func TestCreatesEndpoint(t *testing.T) {
 
 	nodeIP := randomdata.IpV4Address()
 	node := newNode(nodeIP, true)
+	f.nodeLister = append(f.nodeLister, node)
+	f.remoteObjects = append(f.remoteObjects, node)
+
+	brokenNode := newNode(randomdata.IpV4Address(), false)
+	f.nodeLister = append(f.nodeLister, brokenNode)
+	f.remoteObjects = append(f.remoteObjects, brokenNode)
 
 	service := newService()
 	expEndpoint := newEndpoint([]string{nodeIP})
-
 	f.serviceLister = append(f.serviceLister, service)
 	f.localObjects = append(f.localObjects, service)
-	f.nodeLister = append(f.nodeLister, node)
-	f.remoteObjects = append(f.remoteObjects, node)
 
 	f.expectCreateEndpointAction(expEndpoint)
 
@@ -327,10 +330,18 @@ func TestCreatesEndpoint(t *testing.T) {
 func TestAddNewNode(t *testing.T) {
 	f := newFixture(t)
 
-	node1IP := randomdata.IpV4Address()
-	node1 := newNode(node1IP, true)
-	f.nodeLister = append(f.nodeLister, node1)
-	f.remoteObjects = append(f.remoteObjects, node1)
+	nodeIP := randomdata.IpV4Address()
+	node := newNode(nodeIP, true)
+	f.nodeLister = append(f.nodeLister, node)
+	f.remoteObjects = append(f.remoteObjects, node)
+
+	brokenNode := newNode(randomdata.IpV4Address(), true)
+	brokenNode.Status.Conditions[1] = v1.NodeCondition{
+		Type:   v1.NodeNetworkUnavailable,
+		Status: v1.ConditionTrue,
+	}
+	f.nodeLister = append(f.nodeLister, brokenNode)
+	f.remoteObjects = append(f.remoteObjects, brokenNode)
 
 	service := newService()
 	f.serviceLister = append(f.serviceLister, service)
@@ -340,7 +351,7 @@ func TestAddNewNode(t *testing.T) {
 	endpoint := newEndpoint([]string{})
 	f.localObjects = append(f.localObjects, endpoint)
 
-	expEndpoint := newEndpoint([]string{node1IP})
+	expEndpoint := newEndpoint([]string{nodeIP})
 	f.expectUpdateEndpointAction(expEndpoint)
 
 	f.run(getKey(service, t))
