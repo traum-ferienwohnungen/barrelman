@@ -27,7 +27,7 @@ coverage: ## Generate global code coverage report
 coverhtml: ## Generate global code coverage report in HTML
 	./coverage.sh html;
 
-dep: $(MGOPATH)/bin/golangci-lint ## Get the dependencies
+dep: ## Get the dependencies
 	@go get -v -d ./...
 
 $(MGOPATH)/bin/golangci-lint:
