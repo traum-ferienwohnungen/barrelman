@@ -3,6 +3,7 @@ module barrelman
 go 1.12
 
 require (
+	github.com/Pallinder/go-randomdata v1.2.0
 	github.com/evanphx/json-patch v4.5.0+incompatible // indirect
 	github.com/golang/groupcache v0.0.0-20190702054246-869f871628b6 // indirect
 	github.com/google/gofuzz v1.0.0 // indirect

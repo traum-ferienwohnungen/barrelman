@@ -16,7 +16,7 @@ Watch for changes on service objects in _local-cluster_:
 * Add/Modify: Add or update a matching endpoint object
     * Internal IPs from up to date list of nodes in _remote-cluster_
     * Port from `targetPort` of service
-* Delete: FIXME: Do we have to delete the endpoint object manually?
+* Delete: Do nothing (kubernetes will clean up the endpoint automatically)
 
 Watch for changes of nodes in _remote-cluster_:
 * Add: Queue all service objects in _local-cluster_

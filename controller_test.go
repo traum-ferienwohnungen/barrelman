@@ -7,6 +7,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/Pallinder/go-randomdata"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -17,6 +18,17 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+const (
+	serviceName      = "foo-name"
+	serviceNamespace = "foo-namespace"
+	portName         = "foo-port"
+	portNum          = 12345
+)
+
+/*
+Every test involving slices of items (like multiple ports, multiple hosts etc.) are super hard to test in a generic
+way as there is no proper way to DeepEqal structs while ignoring the order of elements in slices.
+*/
 var (
 	alwaysReady        = func() bool { return true }
 	noResyncPeriodFunc = func() time.Duration { return 0 }
@@ -33,8 +45,8 @@ type fixture struct {
 	nodeLister    []*v1.Node
 
 	// Actions expected to happen on the client(s).
-	localActions  []core.Action
-	remoteActions []core.Action
+	localExpectedActions  []core.Action
+	remoteExpectedActions []core.Action
 
 	// Objects from here will be preloaded into informers
 	localObjects  []runtime.Object
@@ -84,11 +96,11 @@ func (f *fixture) newController() (*NodeEndpointController, kubeinformers.Shared
 	return c, serviceInformer, nodeInformer
 }
 
-func (f *fixture) run(fooName string) {
-	f.runController(fooName, false)
+func (f *fixture) run(serviceName string) {
+	f.runController(serviceName, false)
 }
 
-func (f *fixture) runController(fooName string, expectError bool) {
+func (f *fixture) runControllerTestQueue(numExpectedLocalActions, numExpectedRemoteActions int) {
 	c, sI, nI := f.newController()
 
 	stopCh := make(chan struct{})
@@ -96,41 +108,70 @@ func (f *fixture) runController(fooName string, expectError bool) {
 	sI.Start(stopCh)
 	nI.Start(stopCh)
 
-	err := c.syncHandler(fooName)
+	c.enqueueAllServices()
+	items := c.queue.Len()
+	for i := 1; i <= items; i++ {
+		c.processNextItem()
+	}
+
+	// Just test the number of actions here as order is not fixed
+	numLocalActions := len(filterInformerActions(f.localClient.Actions()))
+	if numExpectedLocalActions != numLocalActions {
+		f.t.Errorf("expeced %d local actions, got %d", numExpectedLocalActions, numLocalActions)
+	}
+	numRemoteActions := len(filterInformerActions(f.remoteClient.Actions()))
+	if numExpectedRemoteActions != numRemoteActions {
+		f.t.Errorf("expeced %d remote actions, got %d", numExpectedLocalActions, numLocalActions)
+	}
+}
+
+func (f *fixture) runController(serviceName string, expectError bool) {
+	c, sI, nI := f.newController()
+
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	sI.Start(stopCh)
+	nI.Start(stopCh)
+
+	err := c.syncHandler(serviceName)
 	if !expectError && err != nil {
 		f.t.Errorf("error syncing foo: %v", err)
 	} else if expectError && err == nil {
 		f.t.Error("expected error syncing foo, got nil")
 	}
 
+	f.checkActions()
+}
+
+func (f *fixture) checkActions() {
 	localActions := filterInformerActions(f.localClient.Actions())
 	for i, action := range localActions {
-		if len(f.localActions) < i+1 {
-			f.t.Errorf("%d unexpected localActions: %+v", len(localActions)-len(f.localActions), localActions[i:])
+		if len(f.localExpectedActions) < i+1 {
+			f.t.Errorf("%d unexpected localExpectedActions: %+v", len(localActions)-len(f.localExpectedActions), localActions[i:])
 			break
 		}
 
-		expectedAction := f.localActions[i]
+		expectedAction := f.localExpectedActions[i]
 		checkAction(expectedAction, action, f.t)
 	}
 
-	if len(f.localActions) > len(localActions) {
-		f.t.Errorf("%d additional expected localActions:%+v", len(f.localActions)-len(localActions), f.localActions[len(localActions):])
+	if len(f.localExpectedActions) > len(localActions) {
+		f.t.Errorf("%d additional expected localExpectedActions:%+v", len(f.localExpectedActions)-len(localActions), f.localExpectedActions[len(localActions):])
 	}
 
 	remoteActions := filterInformerActions(f.remoteClient.Actions())
 	for i, action := range remoteActions {
-		if len(f.remoteActions) < i+1 {
-			f.t.Errorf("%d unexpected actions: %+v", len(remoteActions)-len(f.remoteActions), remoteActions[i:])
+		if len(f.remoteExpectedActions) < i+1 {
+			f.t.Errorf("%d unexpected actions: %+v", len(remoteActions)-len(f.remoteExpectedActions), remoteActions[i:])
 			break
 		}
 
-		expectedAction := f.remoteActions[i]
+		expectedAction := f.remoteExpectedActions[i]
 		checkAction(expectedAction, action, f.t)
 	}
 
-	if len(f.remoteActions) > len(remoteActions) {
-		f.t.Errorf("%d additional expected actions:%+v", len(f.remoteActions)-len(remoteActions), f.remoteActions[len(remoteActions):])
+	if len(f.remoteExpectedActions) > len(remoteActions) {
+		f.t.Errorf("%d additional expected actions:%+v", len(f.remoteExpectedActions)-len(remoteActions), f.remoteExpectedActions[len(remoteActions):])
 	}
 }
 
@@ -198,9 +239,16 @@ func filterInformerActions(actions []core.Action) []core.Action {
 }
 
 func (f *fixture) expectCreateEndpointAction(e *v1.Endpoints) {
-	f.localActions = append(
-		f.localActions,
+	f.localExpectedActions = append(
+		f.localExpectedActions,
 		core.NewCreateAction(schema.GroupVersionResource{Resource: "endpoints"}, e.Namespace, e),
+	)
+}
+
+func (f *fixture) expectUpdateEndpointAction(e *v1.Endpoints) {
+	f.localExpectedActions = append(
+		f.localExpectedActions,
+		core.NewUpdateAction(schema.GroupVersionResource{Resource: "endpoints"}, e.Namespace, e),
 	)
 }
 
@@ -213,25 +261,27 @@ func getKey(foo *v1.Service, t *testing.T) string {
 	return key
 }
 
-func TestCreatesEndpoint(t *testing.T) {
-	namespace := "foo-namespace"
-	name := "foo-name"
+func newNode(internalIP string, ready bool) *v1.Node {
+	nodeReady := v1.ConditionFalse
+	if ready {
+		nodeReady = v1.ConditionTrue
+	}
 
 	node := &v1.Node{
 		ObjectMeta: metaV1.ObjectMeta{
-			Name: "foo-node",
+			Name: randomdata.SillyName(),
 		},
 		Status: v1.NodeStatus{
 			Addresses: []v1.NodeAddress{
 				{
 					Type:    v1.NodeInternalIP,
-					Address: "10.11.12.13",
+					Address: internalIP,
 				},
 			},
 			Conditions: []v1.NodeCondition{
 				{
 					Type:   v1.NodeReady,
-					Status: v1.ConditionTrue,
+					Status: nodeReady,
 				},
 				{
 					Type:   v1.NodeNetworkUnavailable,
@@ -240,54 +290,127 @@ func TestCreatesEndpoint(t *testing.T) {
 			},
 		},
 	}
+	return node
+}
 
+func newService() *v1.Service {
 	service := &v1.Service{
 		ObjectMeta: metaV1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
+			Name:      serviceName,
+			Namespace: serviceNamespace,
 			Labels:    serviceLabel,
 		},
 		Spec: v1.ServiceSpec{
 			Ports: []v1.ServicePort{
 				{
-					Name: "foo-port",
-					Port: 12345,
+					Name: portName,
+					Port: portNum,
 				},
 			},
 		},
 	}
+	return service
+}
 
+func newEndpoint(nodeIPs []string) *v1.Endpoints {
+	var epAddresses []v1.EndpointAddress
+	for _, ip := range nodeIPs {
+		epAddresses = append(epAddresses, v1.EndpointAddress{IP: ip})
+	}
 	expEndpoint := &v1.Endpoints{
 		ObjectMeta: metaV1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
+			Name:      serviceName,
+			Namespace: serviceNamespace,
 			Labels:    serviceLabel,
 		},
 		Subsets: []v1.EndpointSubset{
 			{
-				Addresses: []v1.EndpointAddress{
-					{
-						IP: "10.11.12.13",
-					},
-				},
+				Addresses: epAddresses,
 				Ports: []v1.EndpointPort{
 					{
-						Port: 12345,
-						Name: "foo-port",
+						Port: portNum,
+						Name: portName,
 					},
 				},
 			},
 		},
 	}
+	return expEndpoint
+}
 
+func TestCreatesEndpoint(t *testing.T) {
 	f := newFixture(t)
 
-	f.serviceLister = append(f.serviceLister, service)
-	f.localObjects = append(f.localObjects, service)
+	nodeIP := randomdata.IpV4Address()
+	node := newNode(nodeIP, true)
 	f.nodeLister = append(f.nodeLister, node)
 	f.remoteObjects = append(f.remoteObjects, node)
+
+	brokenNode := newNode(randomdata.IpV4Address(), false)
+	f.nodeLister = append(f.nodeLister, brokenNode)
+	f.remoteObjects = append(f.remoteObjects, brokenNode)
+
+	service := newService()
+	expEndpoint := newEndpoint([]string{nodeIP})
+	f.serviceLister = append(f.serviceLister, service)
+	f.localObjects = append(f.localObjects, service)
 
 	f.expectCreateEndpointAction(expEndpoint)
 
 	f.run(getKey(service, t))
+}
+
+func TestAddNewNode(t *testing.T) {
+	f := newFixture(t)
+
+	nodeIP := randomdata.IpV4Address()
+	node := newNode(nodeIP, true)
+	f.nodeLister = append(f.nodeLister, node)
+	f.remoteObjects = append(f.remoteObjects, node)
+
+	brokenNode := newNode(randomdata.IpV4Address(), true)
+	brokenNode.Status.Conditions[1] = v1.NodeCondition{
+		Type:   v1.NodeNetworkUnavailable,
+		Status: v1.ConditionTrue,
+	}
+	f.nodeLister = append(f.nodeLister, brokenNode)
+	f.remoteObjects = append(f.remoteObjects, brokenNode)
+
+	service := newService()
+	f.serviceLister = append(f.serviceLister, service)
+	f.localObjects = append(f.localObjects, service)
+
+	// Cluster contains an endpoint with no node IP
+	endpoint := newEndpoint([]string{})
+	f.localObjects = append(f.localObjects, endpoint)
+
+	expEndpoint := newEndpoint([]string{nodeIP})
+	f.expectUpdateEndpointAction(expEndpoint)
+
+	f.run(getKey(service, t))
+}
+
+func TestBunchOfServices(t *testing.T) {
+	f := newFixture(t)
+
+	nodeIP := randomdata.IpV4Address()
+	node := newNode(nodeIP, true)
+	f.nodeLister = append(f.nodeLister, node)
+	f.remoteObjects = append(f.remoteObjects, node)
+
+	service := newService()
+	f.serviceLister = append(f.serviceLister, service)
+	f.localObjects = append(f.localObjects, service)
+	service2 := newService()
+	service2.Name += "2"
+	f.serviceLister = append(f.serviceLister, service2)
+	f.localObjects = append(f.localObjects, service2)
+
+	expEndpoint := newEndpoint([]string{nodeIP})
+	f.expectCreateEndpointAction(expEndpoint)
+	expEndpoint2 := newEndpoint([]string{nodeIP})
+	expEndpoint2.Name += "2"
+	f.expectCreateEndpointAction(expEndpoint2)
+
+	f.runControllerTestQueue(2, 0)
 }
