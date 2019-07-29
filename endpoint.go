@@ -76,7 +76,7 @@ func NewEndpoint(service *v1.Service, nodes []*v1.Node) (*v1.Endpoints, error) {
 		ObjectMeta: metaV1.ObjectMeta{
 			Name:      service.GetName(),
 			Namespace: service.GetNamespace(),
-			Labels:    map[string]string{"tfw.io/barrelman": "true"},
+			Labels:    serviceLabel,
 		},
 		Subsets: epSubset,
 	}

@@ -31,6 +31,7 @@ type NodeEndpointController struct {
 	serviceLister             corelisters.ServiceLister
 	nodeLister                corelisters.NodeLister
 	serviceSynced, nodeSynced cache.InformerSynced
+
 	// queue will queue all services whose endpoints may need updates
 	queue workqueue.RateLimitingInterface
 }
