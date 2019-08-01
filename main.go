@@ -37,9 +37,17 @@ var (
 	serviceLabelSelector = labels.Set(serviceLabel).AsSelector()
 
 	// Prometheus metrics
-	nodesCount = prometheus.NewGauge(prometheus.GaugeOpts{
+	prom_nodesCount = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "barrelman_current_nodes_count",
-		Help: "Count of nodes in watched cluster.",
+		Help: "Number of nodes in watched cluster.",
+	})
+	prom_endpointUpdates = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "barrelman_endpoint_updates_total",
+		Help: "Count of service endpoints updateds",
+	})
+	prom_endpointUpdateErros = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "barrelman_endpoint_update_error_total",
+		Help: "Count of errors during endpoints updates",
 	})
 )
 
@@ -57,8 +65,11 @@ The the needed config will be auto generated via a Google service account (GOOGL
 		flag.PrintDefaults()
 	}
 	klog.InitFlags(nil)
+
 	// Register prometheus metrics
-	prometheus.MustRegister(nodesCount)
+	prometheus.MustRegister(prom_nodesCount)
+	prometheus.MustRegister(prom_endpointUpdates)
+	prometheus.MustRegister(prom_endpointUpdateErros)
 }
 
 func getLocalClientset() *kubernetes.Clientset {

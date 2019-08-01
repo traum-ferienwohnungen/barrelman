@@ -149,11 +149,13 @@ func (e *NodeEndpointController) processNextItem() bool {
 		if err := e.syncHandler(key); err != nil {
 			// Put the item back on the workqueue to handle any transient errors.
 			e.queue.AddRateLimited(key)
+			prom_endpointUpdateErros.Inc()
 			return fmt.Errorf("error syncing '%s': %s, requeuing", key, err.Error())
 		}
 		// Finally, if no error occurs we Forget this item so it does not
 		// get queued again until another change happens.
 		e.queue.Forget(obj)
+		prom_endpointUpdates.Inc()
 		klog.Infof("Successfully synced '%s'", key)
 		return nil
 	}(key)
@@ -258,17 +260,20 @@ func (e *NodeEndpointController) addNode(obj interface{}) {
 
 	// Check if node is ready
 	if !isNodeReady(node) {
+		prom_nodesCount.Add(1)
 		klog.Warningf("Node %s is not ready", node.GetName())
 		return
 	}
 
 	internalIP, err := getNodeInternalIP(node)
 	if err != nil {
+		prom_nodesCount.Add(1)
 		klog.Errorln(err)
 		return
 	}
 	klog.Infof("InternalIP: %s", internalIP)
 
+	prom_nodesCount.Add(1)
 	e.enqueueAllServices()
 }
 
@@ -309,5 +314,6 @@ func (e *NodeEndpointController) deleteNode(obj interface{}) {
 	node := obj.(*v1.Node)
 	klog.Infof("DELETE for Node %s", node.GetName())
 
+	prom_nodesCount.Add(1)
 	e.enqueueAllServices()
 }
