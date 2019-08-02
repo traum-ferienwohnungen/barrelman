@@ -61,7 +61,6 @@ func NewNodeEndpointController(
 			newService := cur.(*v1.Service)
 			oldService := old.(*v1.Service)
 			if newService.ResourceVersion == oldService.ResourceVersion {
-				klog.Infof("RESYNC (event skipped) newService and oldService have the same ResourceVersion")
 				return
 			}
 			klog.Infof("UPDATE for Service %s/%s", newService.GetNamespace(), newService.GetName())
@@ -156,7 +155,6 @@ func (e *NodeEndpointController) processNextItem() bool {
 		// get queued again until another change happens.
 		e.queue.Forget(obj)
 		prom_endpointUpdates.Inc()
-		klog.Infof("Successfully synced '%s'", key)
 		return nil
 	}(key)
 
@@ -188,8 +186,6 @@ func (e *NodeEndpointController) syncHandler(key string) error {
 
 		return err
 	}
-	klog.Infof("Working on stuff... %#v", key)
-	defer klog.Infof("syncHandler done")
 
 	nodes, err := e.nodeLister.List(labels.Everything())
 	if err != nil {
@@ -200,7 +196,7 @@ func (e *NodeEndpointController) syncHandler(key string) error {
 	if err != nil {
 		// Check if endpoint object (same name as service) exists
 		if errors.IsNotFound(err) {
-			klog.Infof("Endpoint not found, creating")
+			klog.Infof("Creating new endpoint %s", key)
 			endpoint, err = NewEndpoint(service, nodes)
 			if err != nil {
 				klog.Errorln(err)
@@ -217,6 +213,7 @@ func (e *NodeEndpointController) syncHandler(key string) error {
 	}
 
 	// Endpoint exists, update it's addresses
+	klog.Infof("Updating endpoint for %s", key)
 	epSubset, err := endpointSubset(service, nodes)
 	if err != nil {
 		return err
@@ -251,29 +248,25 @@ func (e *NodeEndpointController) enqueueAllServices() {
 	for _, s := range services {
 		e.enqueueService(s)
 	}
-	klog.Infof("Enqueued %d services", len(services))
 }
 
 func (e *NodeEndpointController) addNode(obj interface{}) {
 	node := obj.(*v1.Node)
 	klog.Infof("ADD for Node %s", node.GetName())
+	defer prom_nodesCount.Inc()
 
 	// Check if node is ready
 	if !isNodeReady(node) {
-		prom_nodesCount.Add(1)
 		klog.Warningf("Node %s is not ready", node.GetName())
 		return
 	}
 
 	internalIP, err := getNodeInternalIP(node)
 	if err != nil {
-		prom_nodesCount.Add(1)
 		klog.Errorln(err)
 		return
 	}
-	klog.Infof("InternalIP: %s", internalIP)
-
-	prom_nodesCount.Add(1)
+	klog.Infof("Node %s, IP: %s", node.GetName(), internalIP)
 	e.enqueueAllServices()
 }
 
@@ -283,7 +276,6 @@ func (e *NodeEndpointController) updateNode(old, cur interface{}) {
 
 	if newNode.ResourceVersion == oldNode.ResourceVersion {
 		// Resync will send update events for all nodes
-		klog.Infof("RESYNC (event skipped) newNode and oldNode have the same ResourceVersion")
 		return
 	}
 
@@ -313,7 +305,7 @@ func (e *NodeEndpointController) updateNode(old, cur interface{}) {
 func (e *NodeEndpointController) deleteNode(obj interface{}) {
 	node := obj.(*v1.Node)
 	klog.Infof("DELETE for Node %s", node.GetName())
+	defer prom_nodesCount.Dec()
 
-	prom_nodesCount.Add(1)
 	e.enqueueAllServices()
 }

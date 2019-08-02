@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"k8s.io/apimachinery/pkg/util/intstr"
+
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/Pallinder/go-randomdata"
@@ -23,6 +25,7 @@ const (
 	serviceNamespace = "foo-namespace"
 	portName         = "foo-port"
 	portNum          = 12345
+	portNodePort     = 54321
 )
 
 /*
@@ -303,8 +306,9 @@ func newService() *v1.Service {
 		Spec: v1.ServiceSpec{
 			Ports: []v1.ServicePort{
 				{
-					Name: portName,
-					Port: portNum,
+					Name:       portName,
+					Port:       portNum,
+					TargetPort: intstr.FromInt(portNodePort),
 				},
 			},
 		},
@@ -328,7 +332,7 @@ func newEndpoint(nodeIPs []string) *v1.Endpoints {
 				Addresses: epAddresses,
 				Ports: []v1.EndpointPort{
 					{
-						Port: portNum,
+						Port: portNodePort,
 						Name: portName,
 					},
 				},

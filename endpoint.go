@@ -16,7 +16,7 @@ func endpointPorts(service *v1.Service) ([]v1.EndpointPort, error) {
 		endpointPorts = append(
 			endpointPorts,
 			v1.EndpointPort{
-				Port: port.Port,
+				Port: port.TargetPort.IntVal,
 				Name: port.Name,
 			},
 		)
