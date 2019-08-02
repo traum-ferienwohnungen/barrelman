@@ -1,0 +1,37 @@
+# Default values for barrelman.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+image:
+  # repository: ""
+  # FIXME: use correct registry
+  repository: ""
+  tag: undefined
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Barrelman configuration
+barrelman:
+  gce_service_account: "undefined"
+  resync_period: "2h"
+  remote:
+    project: "undefined"
+    cluster_name: "undefined"
+
+resources: {}
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "barrelman.fullname" . }}
+  namespace: kube-system
+  labels:
+{{ include "barrelman.labels" . | indent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "barrelman.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "barrelman.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9193"
+        scheduler.alpha.kubernetes.io/critical-pod: ""
+    spec:
+      containers:
+        - name: barrelman
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          args:
+            - -remote-project {{ .Values.barrelman.remote.project }}
+            - -remote-cluster-name {{ .Values.barrelman.remote.cluster_name }}
+            - -resync-period {{ .Values.barrelman.resync_period }}
+          env:
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: "/gcloud/credentials.json"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 9193
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: gce-service-account
+              mountPath: /gcloud/
+      volumes:
+        - name: gce-service-account
+          secret:
+            secretName: {{ include "barrelman.fullname" . }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
