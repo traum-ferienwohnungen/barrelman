@@ -133,12 +133,12 @@ func main() {
 	if err != nil {
 		klog.Fatal(err)
 	}
-	klog.Infof("%d services in local\n", len(lservices.Items))
+	klog.Infof("%d services to manage endpoints for in local-cluster\n", len(lservices.Items))
 	rnodes, err := remoteClientset.CoreV1().Nodes().List(metaV1.ListOptions{})
 	if err != nil {
 		klog.Fatal(err)
 	}
-	klog.Infof("%d nodes in remote\n", len(rnodes.Items))
+	klog.Infof("%d nodes in remote-cluster\n", len(rnodes.Items))
 
 	localInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(
 		localClientset,
