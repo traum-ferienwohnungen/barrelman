@@ -21,6 +21,7 @@ spec:
         prometheus.io/port: "9193"
         scheduler.alpha.kubernetes.io/critical-pod: ""
     spec:
+      serviceAccount: {{ include "barrelman.fullname" . }}
       containers:
         - name: barrelman
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
