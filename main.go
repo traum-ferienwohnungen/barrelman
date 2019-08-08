@@ -79,7 +79,7 @@ func getLocalClientset() *kubernetes.Clientset {
 	var config *rest.Config
 	var err error
 	if *localKubeConfig == "" {
-		klog.Infof("No -local-kubeconfig was specified.  Using the inClusterConfig.  This might not work.")
+		klog.Infof("No -local-kubeconfig was specified. Using the inClusterConfig.")
 		config, err = rest.InClusterConfig()
 		if err != nil {
 			klog.Fatal(err)
