@@ -25,9 +25,12 @@ spec:
         - name: barrelman
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           args:
-            - -remote-project {{ .Values.barrelman.remote.project }}
-            - -remote-cluster-name {{ .Values.barrelman.remote.cluster_name }}
-            - -resync-period {{ .Values.barrelman.resync_period }}
+            - -remote-project
+            - {{ .Values.barrelman.remote.project }}
+            - -remote-cluster-name
+            - {{ .Values.barrelman.remote.cluster_name }}
+            - -resync-period
+            - {{ .Values.barrelman.resync_period }}
           env:
             - name: GOOGLE_APPLICATION_CREDENTIALS
               value: "/gcloud/credentials.json"
