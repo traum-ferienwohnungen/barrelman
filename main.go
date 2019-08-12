@@ -42,8 +42,8 @@ var (
 		Help: "Number of nodes in watched cluster.",
 	})
 	prom_endpointUpdates = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "barrelman_endpoint_updates_total",
-		Help: "Count of service endpoints updateds",
+		Name: "barrelman_endpoint_update_total",
+		Help: "Count of service endpoints updates",
 	})
 	prom_endpointUpdateErros = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "barrelman_endpoint_update_error_total",
