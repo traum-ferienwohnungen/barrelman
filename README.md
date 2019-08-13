@@ -48,3 +48,15 @@ Probably needs RBAC role to read service objetcs and create service endpoint
 Needs service account with "Kubernetes Engine Viewer" permission (to read node details)
 
 
+# Development
+## .git/hooks/pre-commit
+```bash
+#!/bin/bash
+STAGED_GO_FILES=$(git diff --cached --name-only | grep ".go$")
+
+if [[ "$STAGED_GO_FILES" = "" ]]; then
+  exit 0
+fi
+
+exec golangci-lint run --fix
+```
