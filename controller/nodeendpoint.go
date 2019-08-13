@@ -1,4 +1,4 @@
-package main
+package controller
 
 import (
 	"fmt"
@@ -11,6 +11,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	coreinformers "k8s.io/client-go/informers/core/v1"
+
+	"barrelman/metrics"
+	"barrelman/utils"
 
 	"k8s.io/client-go/kubernetes"
 	corelisters "k8s.io/client-go/listers/core/v1"
@@ -148,13 +151,13 @@ func (e *NodeEndpointController) processNextItem() bool {
 		if err := e.syncHandler(key); err != nil {
 			// Put the item back on the workqueue to handle any transient errors.
 			e.queue.AddRateLimited(key)
-			prom_endpointUpdateErros.Inc()
+			metrics.EndpointUpdateErrors.Inc()
 			return fmt.Errorf("error syncing '%s': %s, requeuing", key, err.Error())
 		}
 		// Finally, if no error occurs we Forget this item so it does not
 		// get queued again until another change happens.
 		e.queue.Forget(obj)
-		prom_endpointUpdates.Inc()
+		metrics.EndpointUpdates.Inc()
 		return nil
 	}(key)
 
@@ -197,7 +200,7 @@ func (e *NodeEndpointController) syncHandler(key string) error {
 		// Check if endpoint object (same name as service) exists
 		if errors.IsNotFound(err) {
 			klog.Infof("Creating new endpoint %s", key)
-			endpoint, err = NewEndpoint(service, nodes)
+			endpoint, err = utils.NewEndpoint(service, nodes)
 			if err != nil {
 				klog.Errorln(err)
 				return err
@@ -214,7 +217,7 @@ func (e *NodeEndpointController) syncHandler(key string) error {
 
 	// Endpoint exists, update it's addresses
 	klog.Infof("Updating endpoint for %s", key)
-	epSubset, err := endpointSubset(service, nodes)
+	epSubset, err := utils.EndpointSubset(service, nodes)
 	if err != nil {
 		return err
 	}
@@ -253,15 +256,15 @@ func (e *NodeEndpointController) enqueueAllServices() {
 func (e *NodeEndpointController) addNode(obj interface{}) {
 	node := obj.(*v1.Node)
 	klog.Infof("ADD for Node %s", node.GetName())
-	defer prom_nodesCount.Inc()
+	defer metrics.NodeCount.Inc()
 
 	// Check if node is ready
-	if !isNodeReady(node) {
+	if !utils.IsNodeReady(node) {
 		klog.Warningf("Node %s is not ready", node.GetName())
 		return
 	}
 
-	internalIP, err := getNodeInternalIP(node)
+	internalIP, err := utils.GetNodeInternalIP(node)
 	if err != nil {
 		klog.Errorln(err)
 		return
@@ -281,15 +284,15 @@ func (e *NodeEndpointController) updateNode(old, cur interface{}) {
 
 	// filter out relevant node changes
 	var relevantChange bool
-	if isNodeReady(newNode) != isNodeReady(oldNode) {
+	if utils.IsNodeReady(newNode) != utils.IsNodeReady(oldNode) {
 		relevantChange = true
 	}
 
 	// We ignore ip not found errors here because we can't do anything about it
 	// If one of the states does not have an IP, we trigger a sync
 	// If none of the states has an IP, we don't trigger a sync
-	newNodeIP, _ := getNodeInternalIP(newNode)
-	oldNodeIP, _ := getNodeInternalIP(oldNode)
+	newNodeIP, _ := utils.GetNodeInternalIP(newNode)
+	oldNodeIP, _ := utils.GetNodeInternalIP(oldNode)
 	if newNodeIP != oldNodeIP {
 		relevantChange = true
 	}
@@ -305,7 +308,7 @@ func (e *NodeEndpointController) updateNode(old, cur interface{}) {
 func (e *NodeEndpointController) deleteNode(obj interface{}) {
 	node := obj.(*v1.Node)
 	klog.Infof("DELETE for Node %s", node.GetName())
-	defer prom_nodesCount.Dec()
+	defer metrics.NodeCount.Dec()
 
 	e.enqueueAllServices()
 }

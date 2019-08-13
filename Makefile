@@ -1,7 +1,6 @@
 PROJECT_NAME := "barrelman"
-PKG_LIST := $(shell go list | grep -v /vendor/)
 MGOPATH := $(shell go env GOPATH)
-
+PKG_LIST := $(shell go list ./... | grep -v /vendor/)
 .PHONY: all dep build clean test coverage coverhtml lint
 
 all: build

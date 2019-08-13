@@ -1,6 +1,7 @@
-package main
+package controller
 
 import (
+	"barrelman/utils"
 	"reflect"
 	"testing"
 	"time"
@@ -301,7 +302,7 @@ func newService() *v1.Service {
 		ObjectMeta: metaV1.ObjectMeta{
 			Name:      serviceName,
 			Namespace: serviceNamespace,
-			Labels:    serviceLabel,
+			Labels:    utils.ServiceLabel,
 		},
 		Spec: v1.ServiceSpec{
 			Ports: []v1.ServicePort{
@@ -325,7 +326,7 @@ func newEndpoint(nodeIPs []string) *v1.Endpoints {
 		ObjectMeta: metaV1.ObjectMeta{
 			Name:      serviceName,
 			Namespace: serviceNamespace,
-			Labels:    serviceLabel,
+			Labels:    utils.ServiceLabel,
 		},
 		Subsets: []v1.EndpointSubset{
 			{

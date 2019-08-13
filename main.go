@@ -10,9 +10,9 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"k8s.io/apimachinery/pkg/labels"
+	"barrelman/controller"
+	"barrelman/utils"
 
-	"github.com/prometheus/client_golang/prometheus"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -31,24 +31,6 @@ var (
 	remoteZone        = flag.String("remote-zone", "europe-west1-c", "Remote clusters zone")
 	remoteClusterName = flag.String("remote-cluster-name", "", "Remote clusters name")
 	resyncPeriod      = flag.Duration("resync-period", 2*time.Hour, "how often should all nodes be considered \"old\" (and processed again)")
-
-	// Kubernetes label set to identify barrelman controlled services
-	serviceLabel         = map[string]string{"tfw.io/barrelman": "true"}
-	serviceLabelSelector = labels.Set(serviceLabel).AsSelector()
-
-	// Prometheus metrics
-	prom_nodesCount = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "barrelman_current_nodes_count",
-		Help: "Number of nodes in watched cluster.",
-	})
-	prom_endpointUpdates = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "barrelman_endpoint_update_total",
-		Help: "Count of service endpoints updates",
-	})
-	prom_endpointUpdateErros = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "barrelman_endpoint_update_error_total",
-		Help: "Count of errors during endpoints updates",
-	})
 )
 
 func init() {
@@ -65,11 +47,6 @@ The the needed config will be auto generated via a Google service account (GOOGL
 		flag.PrintDefaults()
 	}
 	klog.InitFlags(nil)
-
-	// Register prometheus metrics
-	prometheus.MustRegister(prom_nodesCount)
-	prometheus.MustRegister(prom_endpointUpdates)
-	prometheus.MustRegister(prom_endpointUpdateErros)
 }
 
 func getLocalClientset() *kubernetes.Clientset {
@@ -110,7 +87,7 @@ func getRemoteClientset() *kubernetes.Clientset {
 		klog.Fatalln("You have to specify -remote-project, -remote-zone and -remote-cluster-name")
 	}
 
-	clientset, err := NewGKEClientset(*remoteProject, *remoteZone, *remoteClusterName)
+	clientset, err := utils.NewGKEClientset(*remoteProject, *remoteZone, *remoteClusterName)
 	if err != nil {
 		klog.Fatal(err)
 	}
@@ -121,14 +98,14 @@ func main() {
 	flag.Parse()
 
 	// set up signals so we handle the first shutdown signal gracefully
-	stopCh := SetupSignalHandler()
+	stopCh := utils.SetupSignalHandler()
 
 	// create the clientsets
 	localClientset := getLocalClientset()
 	remoteClientset := getRemoteClientset()
 
 	lservices, err := localClientset.CoreV1().Services("").List(metaV1.ListOptions{
-		LabelSelector: serviceLabelSelector.String(),
+		LabelSelector: utils.ServiceLabelSelector.String(),
 	})
 	if err != nil {
 		klog.Fatal(err)
@@ -144,12 +121,12 @@ func main() {
 		localClientset,
 		*resyncPeriod,
 		kubeinformers.WithTweakListOptions(func(options *metaV1.ListOptions) {
-			options.LabelSelector = serviceLabelSelector.String()
+			options.LabelSelector = utils.ServiceLabelSelector.String()
 		}),
 	)
 	remoteInformerFactory := kubeinformers.NewSharedInformerFactory(remoteClientset, *resyncPeriod)
 
-	controller := NewNodeEndpointController(
+	nodeEndpointController := controller.NewNodeEndpointController(
 		localClientset, remoteClientset,
 		localInformerFactory.Core().V1().Services(),
 		remoteInformerFactory.Core().V1().Nodes(),
@@ -171,10 +148,10 @@ func main() {
 		_ = httpServer.ListenAndServe()
 	}()
 
-	// Launch the controller.
+	// Launch the nodeEndpointController.
 	// This will block 'till stopCh
-	if err = controller.Run(2, stopCh); err != nil {
-		klog.Fatalf("Error running controller: %s", err.Error())
+	if err = nodeEndpointController.Run(2, stopCh); err != nil {
+		klog.Fatalf("Error running nodeEndpointController: %s", err.Error())
 	}
 
 	// Gracefully stop HTTP server

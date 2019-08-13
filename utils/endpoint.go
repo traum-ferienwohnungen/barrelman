@@ -1,4 +1,4 @@
-package main
+package utils
 
 import (
 	"fmt"
@@ -28,11 +28,11 @@ func endpointAdresses(nodes []*v1.Node) []v1.EndpointAddress {
 	var endpointAddresses []v1.EndpointAddress
 
 	for _, node := range nodes {
-		if !isNodeReady(node) {
+		if !IsNodeReady(node) {
 			continue
 		}
 
-		ip, err := getNodeInternalIP(node)
+		ip, err := GetNodeInternalIP(node)
 		if err != nil {
 			continue
 		}
@@ -47,7 +47,7 @@ func endpointAdresses(nodes []*v1.Node) []v1.EndpointAddress {
 	return endpointAddresses
 }
 
-func endpointSubset(service *v1.Service, nodes []*v1.Node) ([]v1.EndpointSubset, error) {
+func EndpointSubset(service *v1.Service, nodes []*v1.Node) ([]v1.EndpointSubset, error) {
 	epPorts, err := endpointPorts(service)
 	if err != nil {
 		return nil, err
@@ -67,7 +67,7 @@ func endpointSubset(service *v1.Service, nodes []*v1.Node) ([]v1.EndpointSubset,
 
 // NewEndPoints creates a new Endpoints object for the given service
 func NewEndpoint(service *v1.Service, nodes []*v1.Node) (*v1.Endpoints, error) {
-	epSubset, err := endpointSubset(service, nodes)
+	epSubset, err := EndpointSubset(service, nodes)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +76,7 @@ func NewEndpoint(service *v1.Service, nodes []*v1.Node) (*v1.Endpoints, error) {
 		ObjectMeta: metaV1.ObjectMeta{
 			Name:      service.GetName(),
 			Namespace: service.GetNamespace(),
-			Labels:    serviceLabel,
+			Labels:    ServiceLabel,
 		},
 		Subsets: epSubset,
 	}
