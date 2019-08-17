@@ -6,8 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/errors"
-
+	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	v1 "k8s.io/api/core/v1"
@@ -23,6 +22,7 @@ import (
 type ActionType string
 
 const (
+	ActionTypeNone   = ""
 	ActionTypeAdd    = "Add"
 	ActionTypeDelete = "Delete"
 	ActionTypeUpdate = "Update"
@@ -192,33 +192,37 @@ func (c *ServiceController) syncHandler(key string) error {
 			* Service type has changed from NodePort -> delete
 
 		create:
-		* Check if service exists in local, do nothing if it is
+		* Check if remoteService exists in local, do nothing if it is
 
 		delete:
-		* Delete service from local if barrelman created it (FIXME: how to identify?)
+		* Delete remoteService from local if barrelman created it (FIXME: how to identify?)
 
 		update:
-		* Update local service with new NodePort
+		* Update local remoteService with new NodePort
 	*/
-	action := ActionTypeAdd
 
-	// Get the service resource from lister
-	service, err := c.remoteServiceLister.Services(namespace).Get(name)
-	// FIXME The resource does no longer exist, delete local service
-	if errors.IsNotFound(err) {
-		action = ActionTypeDelete
+	// Get remote and local service objects
+	getFunc := func() (*v1.Service, error) {
+		return c.remoteServiceLister.Services(namespace).Get(name)
 	}
+	remoteSvc, remoteExists, err := utils.GetService(getFunc)
 	if err != nil {
-		// Error fetching remote object
 		return err
 	}
 
-	// Or the resource may have changed and we're no longer responsible for it
-	if !utils.ResponsibleForService(service) {
-		action = ActionTypeDelete
+	getFunc = func() (*v1.Service, error) {
+		return c.localClient.CoreV1().Services(namespace).Get(name, metaV1.GetOptions{})
+	}
+	localSvc, localExists, err := utils.GetService(getFunc)
+	if err != nil {
+		return err
 	}
 
-	_ = service
+	klog.Infof("%s/%s ", namespace, name)
+
+	// Check what action we need to take on local cluster
+	action := getLocalAction(remoteExists, remoteSvc, localExists, localSvc)
+
 	switch action {
 	case ActionTypeAdd:
 	case ActionTypeUpdate:
