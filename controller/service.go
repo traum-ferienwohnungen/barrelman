@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/errors"
+
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
@@ -218,19 +220,57 @@ func (c *ServiceController) syncHandler(key string) error {
 		return err
 	}
 
-	klog.Infof("%s/%s ", namespace, name)
-
 	// Check what action we need to take on local cluster
 	action := getLocalAction(remoteExists, remoteSvc, localExists, localSvc)
+	klog.Infof("%s/%s: '%s'", namespace, name, action)
 
 	switch action {
 	case ActionTypeAdd:
+		// Check if namespace exist and create it if needed
+		_, err := c.localClient.CoreV1().Namespaces().Get(namespace, metaV1.GetOptions{})
+		if err != nil {
+			if errors.IsNotFound(err) {
+				_, nsErr := c.localClient.CoreV1().Namespaces().Create(&v1.Namespace{
+					ObjectMeta: metaV1.ObjectMeta{
+						Name: namespace,
+					},
+				})
+				if nsErr != nil {
+					klog.Errorf("Failed creating namespace '%s' in local cluster", namespace)
+					return nsErr
+				}
+			}
+			return err
+		}
+		// Build dummy service
+		// Create dummy service
+		_, err = c.localClient.CoreV1().Services(namespace).Create(&v1.Service{
+			ObjectMeta: metaV1.ObjectMeta{
+				Name:      name,
+				Namespace: namespace,
+				Labels:    map[string]string{"tfw.io/barrelman-resource": "true"},
+			},
+			Spec: v1.ServiceSpec{
+				Ports: remoteSvc.Spec.Ports,
+				// We want to create NodePort services only so Type is hardcoded
+				Type: v1.ServiceTypeNodePort,
+			},
+		})
+		return err
 	case ActionTypeUpdate:
+		// Update localSvc with new port(s)
+		localSvc.Spec.Ports = remoteSvc.Spec.Ports
+		// FIXME: NodeEndpointController should pick this up and update all endpoints
+		_, err := c.localClient.CoreV1().Services(namespace).Update(localSvc)
+		return err
 	case ActionTypeDelete:
-		klog.Infoln(action)
+		// Delete localSvc
+		return c.localClient.CoreV1().Services(namespace).Delete(name, &metaV1.DeleteOptions{})
+	case ActionTypeNone:
+		return nil
 	}
 
-	return nil
+	return fmt.Errorf("something wired happened in service syncHandler")
 }
 
 // enqueueService adds a service (key) to the queue

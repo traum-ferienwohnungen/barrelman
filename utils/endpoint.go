@@ -9,7 +9,7 @@ import (
 
 func endpointPorts(service *v1.Service) ([]v1.EndpointPort, error) {
 	if len(service.Spec.Ports) < 1 {
-		return nil, fmt.Errorf("No service ports defined for service: %s", service.GetName())
+		return nil, fmt.Errorf("no service ports defined for service: %s", service.GetName())
 	}
 	var endpointPorts []v1.EndpointPort
 	for _, port := range service.Spec.Ports {
