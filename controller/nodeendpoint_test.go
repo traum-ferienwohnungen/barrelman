@@ -2,9 +2,7 @@ package controller
 
 import (
 	"barrelman/utils"
-	"reflect"
 	"testing"
-	"time"
 
 	"k8s.io/apimachinery/pkg/util/intstr"
 
@@ -14,58 +12,43 @@ import (
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/util/diff"
 	kubeinformers "k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	core "k8s.io/client-go/testing"
-	"k8s.io/client-go/tools/cache"
-)
-
-const (
-	serviceName      = "foo-name"
-	serviceNamespace = "foo-namespace"
-	portName         = "foo-port"
-	portNum          = 12345
-	portNodePort     = 54321
 )
 
 /*
 Every test involving slices of items (like multiple ports, multiple hosts etc.) are super hard to test in a generic
 way as there is no proper way to DeepEqal structs while ignoring the order of elements in slices.
 */
-var (
-	alwaysReady        = func() bool { return true }
-	noResyncPeriodFunc = func() time.Duration { return 0 }
-)
 
-type fixture struct {
-	t *testing.T
-
-	localClient  *k8sfake.Clientset
-	remoteClient *k8sfake.Clientset
+type necFixture struct {
+	baseFixture
 
 	// Objects to put in the stores
 	serviceLister []*v1.Service
 	nodeLister    []*v1.Node
-
-	// Actions expected to happen on the client(s).
-	localExpectedActions  []core.Action
-	remoteExpectedActions []core.Action
-
-	// Objects from here will be preloaded into informers
-	localObjects  []runtime.Object
-	remoteObjects []runtime.Object
 }
 
-func newFixture(t *testing.T) *fixture {
-	f := &fixture{}
-	f.t = t
-	f.localObjects = []runtime.Object{}
-	f.remoteObjects = []runtime.Object{}
+func newNecFixture(t *testing.T) *necFixture {
+	f := &necFixture{
+		baseFixture: baseFixture{
+			t:             t,
+			localObjects:  []runtime.Object{},
+			remoteObjects: []runtime.Object{},
+			informerFilter: []testAction{
+				{"get", "endpoints"},
+				{"list", "nodes"},
+				{"watch", "nodes"},
+				{"list", "services"},
+				{"watch", "services"},
+			},
+		},
+	}
 	return f
 }
 
-func (f *fixture) newController() (*NodeEndpointController, kubeinformers.SharedInformerFactory, kubeinformers.SharedInformerFactory) {
+func (f *necFixture) newController() (*NodeEndpointController, kubeinformers.SharedInformerFactory, kubeinformers.SharedInformerFactory) {
 	f.localClient = k8sfake.NewSimpleClientset(f.localObjects...)
 	f.remoteClient = k8sfake.NewSimpleClientset(f.remoteObjects...)
 
@@ -100,11 +83,11 @@ func (f *fixture) newController() (*NodeEndpointController, kubeinformers.Shared
 	return c, serviceInformer, nodeInformer
 }
 
-func (f *fixture) run(serviceName string) {
+func (f *necFixture) run(serviceName string) {
 	f.runController(serviceName, false)
 }
 
-func (f *fixture) runControllerTestQueue(numExpectedLocalActions, numExpectedRemoteActions int) {
+func (f *necFixture) runControllerTestQueue(numExpectedLocalActions, numExpectedRemoteActions int) {
 	c, sI, nI := f.newController()
 
 	stopCh := make(chan struct{})
@@ -119,17 +102,17 @@ func (f *fixture) runControllerTestQueue(numExpectedLocalActions, numExpectedRem
 	}
 
 	// Just test the number of actions here as order is not fixed
-	numLocalActions := len(filterInformerActions(f.localClient.Actions()))
+	numLocalActions := len(f.filterInformerActions(f.localClient.Actions()))
 	if numExpectedLocalActions != numLocalActions {
 		f.t.Errorf("expeced %d local actions, got %d", numExpectedLocalActions, numLocalActions)
 	}
-	numRemoteActions := len(filterInformerActions(f.remoteClient.Actions()))
+	numRemoteActions := len(f.filterInformerActions(f.remoteClient.Actions()))
 	if numExpectedRemoteActions != numRemoteActions {
 		f.t.Errorf("expeced %d remote actions, got %d", numExpectedLocalActions, numLocalActions)
 	}
 }
 
-func (f *fixture) runController(serviceName string, expectError bool) {
+func (f *necFixture) runController(serviceName string, expectError bool) {
 	c, sI, nI := f.newController()
 
 	stopCh := make(chan struct{})
@@ -147,122 +130,18 @@ func (f *fixture) runController(serviceName string, expectError bool) {
 	f.checkActions()
 }
 
-func (f *fixture) checkActions() {
-	localActions := filterInformerActions(f.localClient.Actions())
-	for i, action := range localActions {
-		if len(f.localExpectedActions) < i+1 {
-			f.t.Errorf("%d unexpected localExpectedActions: %+v", len(localActions)-len(f.localExpectedActions), localActions[i:])
-			break
-		}
-
-		expectedAction := f.localExpectedActions[i]
-		checkAction(expectedAction, action, f.t)
-	}
-
-	if len(f.localExpectedActions) > len(localActions) {
-		f.t.Errorf("%d additional expected localExpectedActions:%+v", len(f.localExpectedActions)-len(localActions), f.localExpectedActions[len(localActions):])
-	}
-
-	remoteActions := filterInformerActions(f.remoteClient.Actions())
-	for i, action := range remoteActions {
-		if len(f.remoteExpectedActions) < i+1 {
-			f.t.Errorf("%d unexpected actions: %+v", len(remoteActions)-len(f.remoteExpectedActions), remoteActions[i:])
-			break
-		}
-
-		expectedAction := f.remoteExpectedActions[i]
-		checkAction(expectedAction, action, f.t)
-	}
-
-	if len(f.remoteExpectedActions) > len(remoteActions) {
-		f.t.Errorf("%d additional expected actions:%+v", len(f.remoteExpectedActions)-len(remoteActions), f.remoteExpectedActions[len(remoteActions):])
-	}
-}
-
-// checkAction verifies that expected and actual actions are equal and both have
-// same attached resources
-func checkAction(expected, actual core.Action, t *testing.T) {
-	if !(expected.Matches(actual.GetVerb(), actual.GetResource().Resource) && actual.GetSubresource() == expected.GetSubresource()) {
-		t.Errorf("Expected\n\t%#v\ngot\n\t%#v", expected, actual)
-		return
-	}
-
-	if reflect.TypeOf(actual) != reflect.TypeOf(expected) {
-		t.Errorf("Action has wrong type. Expected: %t. Got: %t", expected, actual)
-		return
-	}
-
-	switch a := actual.(type) {
-	case core.CreateAction:
-		e, _ := expected.(core.CreateAction)
-		expObject := e.GetObject()
-		object := a.GetObject()
-
-		if !reflect.DeepEqual(expObject, object) {
-			t.Errorf("Action %s %s has wrong object\nDiff:\n %s",
-				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintSideBySide(expObject, object))
-		}
-	case core.UpdateAction:
-		e, _ := expected.(core.UpdateAction)
-		expObject := e.GetObject()
-		object := a.GetObject()
-
-		if !reflect.DeepEqual(expObject, object) {
-			t.Errorf("Action %s %s has wrong object\nDiff:\n %s",
-				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintSideBySide(expObject, object))
-		}
-	case core.PatchAction:
-		e, _ := expected.(core.PatchAction)
-		expPatch := e.GetPatch()
-		patch := a.GetPatch()
-
-		if !reflect.DeepEqual(expPatch, patch) {
-			t.Errorf("Action %s %s has wrong patch\nDiff:\n %s",
-				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintSideBySide(expPatch, patch))
-		}
-	}
-}
-
-// filterInformerActions filters list and watch actions for testing resources.
-// Since get, list and watch don't change resource state we can filter it to
-// lower noise level in our tests.
-func filterInformerActions(actions []core.Action) []core.Action {
-	ret := []core.Action{}
-	for _, action := range actions {
-		if action.Matches("get", "endpoints") ||
-			action.Matches("list", "nodes") ||
-			action.Matches("watch", "nodes") ||
-			action.Matches("list", "services") ||
-			action.Matches("watch", "services") {
-			continue
-		}
-		ret = append(ret, action)
-	}
-
-	return ret
-}
-
-func (f *fixture) expectCreateEndpointAction(e *v1.Endpoints) {
+func (f *necFixture) expectCreateEndpointAction(e *v1.Endpoints) {
 	f.localExpectedActions = append(
 		f.localExpectedActions,
 		core.NewCreateAction(schema.GroupVersionResource{Resource: "endpoints"}, e.Namespace, e),
 	)
 }
 
-func (f *fixture) expectUpdateEndpointAction(e *v1.Endpoints) {
+func (f *necFixture) expectUpdateEndpointAction(e *v1.Endpoints) {
 	f.localExpectedActions = append(
 		f.localExpectedActions,
 		core.NewUpdateAction(schema.GroupVersionResource{Resource: "endpoints"}, e.Namespace, e),
 	)
-}
-
-func getKey(foo *v1.Service, t *testing.T) string {
-	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(foo)
-	if err != nil {
-		t.Errorf("Unexpected error getting key for service %v: %v", foo.Name, err)
-		return ""
-	}
-	return key
 }
 
 func newNode(internalIP string, ready bool) *v1.Node {
@@ -344,7 +223,7 @@ func newEndpoint(nodeIPs []string) *v1.Endpoints {
 }
 
 func TestCreatesEndpoint(t *testing.T) {
-	f := newFixture(t)
+	f := newNecFixture(t)
 
 	nodeIP := randomdata.IpV4Address()
 	node := newNode(nodeIP, true)
@@ -366,7 +245,7 @@ func TestCreatesEndpoint(t *testing.T) {
 }
 
 func TestAddNewNode(t *testing.T) {
-	f := newFixture(t)
+	f := newNecFixture(t)
 
 	nodeIP := randomdata.IpV4Address()
 	node := newNode(nodeIP, true)
@@ -396,7 +275,7 @@ func TestAddNewNode(t *testing.T) {
 }
 
 func TestBunchOfServices(t *testing.T) {
-	f := newFixture(t)
+	f := newNecFixture(t)
 
 	nodeIP := randomdata.IpV4Address()
 	node := newNode(nodeIP, true)
