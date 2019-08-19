@@ -132,6 +132,11 @@ func main() {
 		remoteInformerFactory.Core().V1().Nodes(),
 	)
 
+	serviceController := controller.NewServiceController(
+		localClientset, remoteClientset,
+		remoteInformerFactory.Core().V1().Services(),
+	)
+
 	// Ramp up the informer loops
 	// They run all registered informer in go routines
 	localInformerFactory.Start(stopCh)
@@ -148,11 +153,21 @@ func main() {
 		_ = httpServer.ListenAndServe()
 	}()
 
-	// Launch the nodeEndpointController.
+	// Launch the controllers
 	// This will block 'till stopCh
-	if err = nodeEndpointController.Run(2, stopCh); err != nil {
-		klog.Fatalf("Error running nodeEndpointController: %s", err.Error())
-	}
+	func() {
+		go func() {
+			if err = nodeEndpointController.Run(2, stopCh); err != nil {
+				klog.Fatalf("Error running nodeEndpointController: %s", err.Error())
+			}
+		}()
+		go func() {
+			if err = serviceController.Run(2, stopCh); err != nil {
+				klog.Fatalf("Error running serviceController: %s", err.Error())
+			}
+		}()
+		<-stopCh
+	}()
 
 	// Gracefully stop HTTP server
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)

@@ -44,6 +44,7 @@ func OwnerOfService(service *v1.Service) bool {
 	return false
 }
 
+// GetServiceFunc is a function returning a service pointer and an error
 type GetServiceFunc func() (*v1.Service, error)
 
 // GetService fetches a service object via getFunc
