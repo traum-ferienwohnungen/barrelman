@@ -36,7 +36,7 @@ func newNecFixture(t *testing.T) *necFixture {
 			t:             t,
 			localObjects:  []runtime.Object{},
 			remoteObjects: []runtime.Object{},
-			informerFilter: []testAction{
+			informerFilter: []filterAction{
 				{"get", "endpoints"},
 				{"list", "nodes"},
 				{"watch", "nodes"},

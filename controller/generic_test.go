@@ -32,7 +32,7 @@ var (
 	noResyncPeriodFunc = func() time.Duration { return 0 }
 )
 
-type testAction struct {
+type filterAction struct {
 	Verb, Resource string
 }
 
@@ -51,7 +51,7 @@ type baseFixture struct {
 	remoteObjects []runtime.Object
 
 	// List of actions to filter out for testing
-	informerFilter []testAction
+	informerFilter []filterAction
 }
 
 func (b *baseFixture) filterInformerActions(actions []core.Action) []core.Action {
