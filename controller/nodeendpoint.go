@@ -242,8 +242,10 @@ func (c *NodeEndpointController) enqueueService(obj interface{}) {
 
 // enqueueAllServices add all services to the queue
 func (c *NodeEndpointController) enqueueAllServices() {
-	// serviceLister is already filtered, so we can use an empty label filter here
-	services, err := c.serviceLister.List(labels.Everything())
+	// serviceLister is already filtered, so we could use an empty label filter here
+	//services, err := c.serviceLister.List(labels.Everything())
+
+	services, err := c.serviceLister.List(utils.ServiceSelector)
 	if err != nil {
 		klog.Infof("No services to enqueue")
 		return

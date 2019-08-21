@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"barrelman/utils"
 	"testing"
 
 	v1 "k8s.io/api/core/v1"
@@ -62,7 +63,7 @@ func TestGetLocalAction(t *testing.T) {
 			localExists: true,
 			local: &v1.Service{
 				ObjectMeta: metaV1.ObjectMeta{
-					Labels: map[string]string{"tfw.io/barrelman-resource": "true"},
+					Labels: utils.ResourceLabel,
 				},
 				Spec: v1.ServiceSpec{
 					Type: v1.ServiceTypeLoadBalancer,
@@ -81,7 +82,7 @@ func TestGetLocalAction(t *testing.T) {
 			localExists: true,
 			local: &v1.Service{
 				ObjectMeta: metaV1.ObjectMeta{
-					Labels: map[string]string{"tfw.io/barrelman-resource": "true"},
+					Labels: utils.ResourceLabel,
 				},
 				Spec: v1.ServiceSpec{
 					Type: v1.ServiceTypeNodePort,
@@ -94,7 +95,7 @@ func TestGetLocalAction(t *testing.T) {
 			remoteExists: true,
 			remote: &v1.Service{
 				ObjectMeta: metaV1.ObjectMeta{
-					Annotations: map[string]string{"tfw.io/barrelman": "ignore"},
+					Annotations: utils.IgnoreAnnotation,
 				},
 				Spec: v1.ServiceSpec{
 					Type: v1.ServiceTypeNodePort,
@@ -115,8 +116,8 @@ func TestGetLocalAction(t *testing.T) {
 			localExists:  true,
 			local: &v1.Service{
 				ObjectMeta: metaV1.ObjectMeta{
-					Labels:      map[string]string{"tfw.io/barrelman-resource": "true"},
-					Annotations: map[string]string{"tfw.io/barrelman": "ignore"},
+					Labels:      utils.ResourceLabel,
+					Annotations: utils.IgnoreAnnotation,
 				},
 				Spec: v1.ServiceSpec{
 					Type: v1.ServiceTypeNodePort,
@@ -130,7 +131,7 @@ func TestGetLocalAction(t *testing.T) {
 			localExists:  true,
 			local: &v1.Service{
 				ObjectMeta: metaV1.ObjectMeta{
-					Labels: map[string]string{"tfw.io/barrelman-resource": "true"},
+					Labels: utils.ResourceLabel,
 				},
 				Spec: v1.ServiceSpec{
 					Type: v1.ServiceTypeNodePort,

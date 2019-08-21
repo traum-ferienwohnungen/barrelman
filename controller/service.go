@@ -248,7 +248,7 @@ func (c *ServiceController) syncHandler(key string) error {
 			ObjectMeta: metaV1.ObjectMeta{
 				Name:      name,
 				Namespace: namespace,
-				Labels:    map[string]string{"tfw.io/barrelman-resource": "true"},
+				Labels:    utils.ResourceLabel,
 			},
 			Spec: v1.ServiceSpec{
 				Ports: remoteSvc.Spec.Ports,

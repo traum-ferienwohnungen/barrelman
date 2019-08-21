@@ -19,7 +19,7 @@ func ResponsibleForService(service *v1.Service) bool {
 
 	// Services with the "tfw.io/barrelman: ignore" annotation should be ignored
 	for k, v := range service.Annotations {
-		if k == "tfw.io/barrelman" && v == "ignore" {
+		if k == LabelAnnotationKey && v == AnnotationValueIgnore {
 			return false
 		}
 	}
@@ -33,10 +33,10 @@ func OwnerOfService(service *v1.Service) bool {
 		return false
 	}
 
-	// Services with the label "tfw.io/barrelman-resource: true" have been created by barrelman
+	// Services with the label "tfw.io/barrelman: managed-resource" have been created by barrelman
 	// as "dummy" service.
 	for k, v := range service.Labels {
-		if k == "tfw.io/barrelman-resource" && v == "true" {
+		if k == LabelAnnotationKey && v == LabelValueManagedResource {
 			return true
 		}
 	}
@@ -50,12 +50,19 @@ type GetServiceFunc func() (*v1.Service, error)
 // GetService fetches a service object via getFunc
 func GetService(getFunc GetServiceFunc) (service *v1.Service, exists bool, err error) {
 	service, err = getFunc()
-	if err != nil {
-		exists = false
-		if errors.IsNotFound(err) {
-			err = nil
+
+	if err == nil {
+		// claim service does not exist if we got a nil pointer
+		if service == nil {
+			return nil, false, nil
 		}
+		return service, true, nil
 	}
-	exists = true
-	return service, exists, err
+
+	// Handle not found es non error, but return exists: false
+	if errors.IsNotFound(err) {
+		return nil, false, nil
+	}
+
+	return nil, false, err
 }

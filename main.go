@@ -105,7 +105,7 @@ func main() {
 	remoteClientset := getRemoteClientset()
 
 	lservices, err := localClientset.CoreV1().Services("").List(metaV1.ListOptions{
-		LabelSelector: utils.ServiceLabelSelector.String(),
+		LabelSelector: utils.ServiceSelector.String(),
 	})
 	if err != nil {
 		klog.Fatal(err)
@@ -121,7 +121,7 @@ func main() {
 		localClientset,
 		*resyncPeriod,
 		kubeinformers.WithTweakListOptions(func(options *metaV1.ListOptions) {
-			options.LabelSelector = utils.ServiceLabelSelector.String()
+			options.LabelSelector = utils.ServiceSelector.String()
 		}),
 	)
 	remoteInformerFactory := kubeinformers.NewSharedInformerFactory(remoteClientset, *resyncPeriod)
