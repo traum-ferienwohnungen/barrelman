@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"sort"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 )
@@ -65,4 +67,28 @@ func GetService(getFunc GetServiceFunc) (service *v1.Service, exists bool, err e
 	}
 
 	return nil, false, err
+}
+
+func ServicePortsEqual(a, b []v1.ServicePort) bool {
+	if (a == nil) != (b == nil) {
+		return false
+	}
+	if len(a) != len(b) {
+		return false
+	}
+
+	// Create copy's of ServicePorts as we don't want to change the input
+	sA := make([]v1.ServicePort, len(a))
+	sB := make([]v1.ServicePort, len(b))
+	copy(sA, a)
+	copy(sB, b)
+	sort.Slice(sA, func(i, j int) bool { return i == j })
+	sort.Slice(sB, func(i, j int) bool { return i == j })
+
+	for idx, port := range sA {
+		if port != sB[idx] {
+			return false
+		}
+	}
+	return true
 }

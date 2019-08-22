@@ -226,21 +226,23 @@ func (c *ServiceController) syncHandler(key string) error {
 
 	switch action {
 	case ActionTypeAdd:
-		// Check if namespace exist and create it if needed
+		// Check if namespace exist
 		_, err := c.localClient.CoreV1().Namespaces().Get(namespace, metaV1.GetOptions{})
 		if err != nil {
-			if errors.IsNotFound(err) {
-				_, nsErr := c.localClient.CoreV1().Namespaces().Create(&v1.Namespace{
-					ObjectMeta: metaV1.ObjectMeta{
-						Name: namespace,
-					},
-				})
-				if nsErr != nil {
-					klog.Errorf("Failed creating namespace '%s' in local cluster", namespace)
-					return nsErr
-				}
+			if !errors.IsNotFound(err) {
+				return err
 			}
-			return err
+
+			// If namespace does not exist (in local), create it
+			_, nsErr := c.localClient.CoreV1().Namespaces().Create(&v1.Namespace{
+				ObjectMeta: metaV1.ObjectMeta{
+					Name: namespace,
+				},
+			})
+			if nsErr != nil {
+				klog.Errorf("Failed creating namespace '%s' in local cluster", namespace)
+				return nsErr
+			}
 		}
 		// Build dummy service
 		// Create dummy service
@@ -258,6 +260,9 @@ func (c *ServiceController) syncHandler(key string) error {
 		})
 		return err
 	case ActionTypeUpdate:
+		if utils.ServicePortsEqual(localSvc.Spec.Ports, remoteSvc.Spec.Ports) {
+			return nil
+		}
 		// Update localSvc with new port(s)
 		localSvc.Spec.Ports = remoteSvc.Spec.Ports
 		// FIXME: NodeEndpointController should pick this up and update all endpoints

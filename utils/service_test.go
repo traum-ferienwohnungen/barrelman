@@ -4,6 +4,8 @@ import (
 	"reflect"
 	"testing"
 
+	"k8s.io/apimachinery/pkg/util/intstr"
+
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -193,6 +195,129 @@ func TestGetService(t *testing.T) {
 			}
 			if gotExists != tt.wantExists {
 				t.Errorf("GetService() gotExists = %v, want %v", gotExists, tt.wantExists)
+			}
+		})
+	}
+}
+
+func TestServicePortsEqual(t *testing.T) {
+	type args struct {
+		a []v1.ServicePort
+		b []v1.ServicePort
+	}
+	tests := []struct {
+		name string
+		args args
+		want bool
+	}{
+		{
+			"nil",
+			args{
+				nil,
+				nil,
+			},
+			true,
+		},
+		{
+			"OneNil",
+			args{
+				[]v1.ServicePort{
+					{
+						Name: "foo",
+					},
+				},
+				nil,
+			},
+			false,
+		},
+		{
+			"UnequalLength",
+			args{
+				[]v1.ServicePort{
+					{
+						Name: "foo",
+					},
+				},
+				[]v1.ServicePort{
+					{
+						Name: "foo",
+					},
+					{
+						Name: "foo2",
+					},
+				},
+			},
+			false,
+		},
+		{
+			"Unequal",
+			args{
+				[]v1.ServicePort{
+					{
+						Name:     "udp-foo",
+						Protocol: "udp",
+						Port:     53,
+					},
+					{
+						Name:       "tcp-foo",
+						Protocol:   "tcp",
+						Port:       12,
+						TargetPort: intstr.IntOrString{IntVal: 31},
+					},
+				},
+				[]v1.ServicePort{
+					{
+						Name:     "udp-foo",
+						Protocol: "udp",
+						Port:     53,
+					},
+					{
+						Name:       "tcp-foo",
+						Protocol:   "tcp",
+						Port:       12,
+						TargetPort: intstr.IntOrString{IntVal: 312},
+					},
+				},
+			},
+			false,
+		},
+		{
+			"Equal",
+			args{
+				[]v1.ServicePort{
+					{
+						Name:     "udp-foo",
+						Protocol: "udp",
+						Port:     53,
+					},
+					{
+						Name:       "tcp-foo",
+						Protocol:   "tcp",
+						Port:       12,
+						TargetPort: intstr.IntOrString{IntVal: 312},
+					},
+				},
+				[]v1.ServicePort{
+					{
+						Name:     "udp-foo",
+						Protocol: "udp",
+						Port:     53,
+					},
+					{
+						Name:       "tcp-foo",
+						Protocol:   "tcp",
+						Port:       12,
+						TargetPort: intstr.IntOrString{IntVal: 312},
+					},
+				},
+			},
+			true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ServicePortsEqual(tt.args.a, tt.args.b); got != tt.want {
+				t.Errorf("ServicePortsEqual() = %v, want %v", got, tt.want)
 			}
 		})
 	}
