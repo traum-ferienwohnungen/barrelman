@@ -77,6 +77,11 @@ func TestResponsibleForService(t *testing.T) {
 			},
 			false,
 		},
+		{
+			"nil",
+			nil,
+			false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -114,6 +119,11 @@ func TestOwnerOfService(t *testing.T) {
 					Type: v1.ServiceTypeNodePort,
 				},
 			},
+			false,
+		},
+		{
+			"nil",
+			nil,
 			false,
 		},
 	}
