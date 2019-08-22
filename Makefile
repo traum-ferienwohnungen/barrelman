@@ -6,7 +6,7 @@ PKG_LIST := $(shell go list ./... | grep -v /vendor/)
 all: build
 
 lint: $(MGOPATH)/bin/golangci-lint ## Run lint
-	@golangci-lint run --deadline 2m -D structcheck
+	@golangci-lint run --deadline 2m
 
 test: ## Run unittests
 	@go test ${PKG_LIST}
