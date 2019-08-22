@@ -24,7 +24,7 @@ func endpointPorts(service *v1.Service) ([]v1.EndpointPort, error) {
 	return endpointPorts, nil
 }
 
-func endpointAdresses(nodes []*v1.Node) []v1.EndpointAddress {
+func endpointAddresses(nodes []*v1.Node) []v1.EndpointAddress {
 	var endpointAddresses []v1.EndpointAddress
 
 	for _, node := range nodes {
@@ -53,7 +53,7 @@ func EndpointSubset(service *v1.Service, nodes []*v1.Node) ([]v1.EndpointSubset,
 		return nil, err
 	}
 
-	epAddresses := endpointAdresses(nodes)
+	epAddresses := endpointAddresses(nodes)
 	if len(epAddresses) < 1 {
 		return nil, fmt.Errorf("No valid (ready) node IPs found")
 	}

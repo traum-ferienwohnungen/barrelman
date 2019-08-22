@@ -13,13 +13,13 @@ import (
 )
 
 func TestResponsibleForService(t *testing.T) {
-	type testPair struct {
-		input  *v1.Service
-		output bool
-	}
-
-	var tests = []testPair{
+	tests := []struct {
+		name    string
+		service *v1.Service
+		want    bool
+	}{
 		{
+			"RandomAnnotation",
 			&v1.Service{
 				ObjectMeta: metaV1.ObjectMeta{
 					Annotations: map[string]string{"tfw.io/barrelman": "fooooo"},
@@ -31,6 +31,7 @@ func TestResponsibleForService(t *testing.T) {
 			true,
 		},
 		{
+			"Responsible",
 			&v1.Service{
 				ObjectMeta: metaV1.ObjectMeta{},
 				Spec: v1.ServiceSpec{
@@ -40,6 +41,7 @@ func TestResponsibleForService(t *testing.T) {
 			true,
 		},
 		{
+			"Ignore",
 			&v1.Service{
 				ObjectMeta: metaV1.ObjectMeta{
 					Annotations: IgnoreAnnotation,
@@ -51,6 +53,7 @@ func TestResponsibleForService(t *testing.T) {
 			false,
 		},
 		{
+			"IgnoreResponsible",
 			&v1.Service{
 				ObjectMeta: metaV1.ObjectMeta{
 					Annotations: IgnoreAnnotation,
@@ -62,6 +65,7 @@ func TestResponsibleForService(t *testing.T) {
 			false,
 		},
 		{
+			"IgnoreResource",
 			&v1.Service{
 				ObjectMeta: metaV1.ObjectMeta{
 					Annotations: IgnoreAnnotation,
@@ -74,23 +78,23 @@ func TestResponsibleForService(t *testing.T) {
 			false,
 		},
 	}
-	for _, test := range tests {
-		output := ResponsibleForService(test.input)
-		if output != test.output {
-			t.Errorf("Expected %t got %t for service:\n %v", test.output, output, *test.input)
-		}
-
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ResponsibleForService(tt.service); got != tt.want {
+				t.Errorf("ResponsibleForService() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 
 func TestOwnerOfService(t *testing.T) {
-	type testPair struct {
-		input  *v1.Service
-		output bool
-	}
-
-	var tests = []testPair{
+	tests := []struct {
+		name    string
+		service *v1.Service
+		want    bool
+	}{
 		{
+			"NotOwner",
 			&v1.Service{
 				ObjectMeta: metaV1.ObjectMeta{
 					Annotations: IgnoreAnnotation,
@@ -103,6 +107,7 @@ func TestOwnerOfService(t *testing.T) {
 			true,
 		},
 		{
+			"Owner",
 			&v1.Service{
 				ObjectMeta: metaV1.ObjectMeta{},
 				Spec: v1.ServiceSpec{
@@ -112,12 +117,12 @@ func TestOwnerOfService(t *testing.T) {
 			false,
 		},
 	}
-	for _, test := range tests {
-		output := OwnerOfService(test.input)
-		if output != test.output {
-			t.Errorf("Expected %t got %t for service:\n %v", test.output, output, *test.input)
-		}
-
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := OwnerOfService(tt.service); got != tt.want {
+				t.Errorf("OwnerOfService() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 
