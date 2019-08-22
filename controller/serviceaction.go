@@ -26,13 +26,13 @@ func getLocalAction(remoteExists bool, remoteSvc *v1.Service, localExists bool, 
 			klog.Infof("%s/%s remote and local exist, UPDATE", localSvc.GetNamespace(), localSvc.GetName())
 			return ActionTypeUpdate
 		} else {
-			klog.Infof("%s/%s local does not exist, ADD", localSvc.GetNamespace(), localSvc.GetName())
+			klog.Infof("%s/%s local does not exist, ADD", remoteSvc.GetNamespace(), remoteSvc.GetName())
 			return ActionTypeAdd
 		}
 	}
 
 	if !remoteExists || !utils.ResponsibleForService(remoteSvc) {
-		klog.Infof("%s/%s not responsible for remote", remoteSvc.GetNamespace(), remoteSvc.GetName())
+		klog.Infoln("not responsible for remote")
 
 		if localExists {
 			if !utils.OwnerOfService(localSvc) {

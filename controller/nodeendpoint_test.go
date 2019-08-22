@@ -144,7 +144,7 @@ func (f *necFixture) expectUpdateEndpointAction(e *v1.Endpoints) {
 	)
 }
 
-func newNode(internalIP string, ready bool) *v1.Node {
+func necNewNode(internalIP string, ready bool) *v1.Node {
 	nodeReady := v1.ConditionFalse
 	if ready {
 		nodeReady = v1.ConditionTrue
@@ -176,7 +176,7 @@ func newNode(internalIP string, ready bool) *v1.Node {
 	return node
 }
 
-func newService() *v1.Service {
+func necNewService() *v1.Service {
 	service := &v1.Service{
 		ObjectMeta: metaV1.ObjectMeta{
 			Name:      serviceName,
@@ -196,7 +196,7 @@ func newService() *v1.Service {
 	return service
 }
 
-func newEndpoint(nodeIPs []string) *v1.Endpoints {
+func necNewEndpoint(nodeIPs []string) *v1.Endpoints {
 	var epAddresses []v1.EndpointAddress
 	for _, ip := range nodeIPs {
 		epAddresses = append(epAddresses, v1.EndpointAddress{IP: ip})
@@ -226,16 +226,16 @@ func TestCreatesEndpoint(t *testing.T) {
 	f := newNecFixture(t)
 
 	nodeIP := randomdata.IpV4Address()
-	node := newNode(nodeIP, true)
+	node := necNewNode(nodeIP, true)
 	f.nodeLister = append(f.nodeLister, node)
 	f.remoteObjects = append(f.remoteObjects, node)
 
-	brokenNode := newNode(randomdata.IpV4Address(), false)
+	brokenNode := necNewNode(randomdata.IpV4Address(), false)
 	f.nodeLister = append(f.nodeLister, brokenNode)
 	f.remoteObjects = append(f.remoteObjects, brokenNode)
 
-	service := newService()
-	expEndpoint := newEndpoint([]string{nodeIP})
+	service := necNewService()
+	expEndpoint := necNewEndpoint([]string{nodeIP})
 	f.serviceLister = append(f.serviceLister, service)
 	f.localObjects = append(f.localObjects, service)
 
@@ -248,11 +248,11 @@ func TestAddNewNode(t *testing.T) {
 	f := newNecFixture(t)
 
 	nodeIP := randomdata.IpV4Address()
-	node := newNode(nodeIP, true)
+	node := necNewNode(nodeIP, true)
 	f.nodeLister = append(f.nodeLister, node)
 	f.remoteObjects = append(f.remoteObjects, node)
 
-	brokenNode := newNode(randomdata.IpV4Address(), true)
+	brokenNode := necNewNode(randomdata.IpV4Address(), true)
 	brokenNode.Status.Conditions[1] = v1.NodeCondition{
 		Type:   v1.NodeNetworkUnavailable,
 		Status: v1.ConditionTrue,
@@ -260,15 +260,15 @@ func TestAddNewNode(t *testing.T) {
 	f.nodeLister = append(f.nodeLister, brokenNode)
 	f.remoteObjects = append(f.remoteObjects, brokenNode)
 
-	service := newService()
+	service := necNewService()
 	f.serviceLister = append(f.serviceLister, service)
 	f.localObjects = append(f.localObjects, service)
 
 	// Cluster contains an endpoint with no node IP
-	endpoint := newEndpoint([]string{})
+	endpoint := necNewEndpoint([]string{})
 	f.localObjects = append(f.localObjects, endpoint)
 
-	expEndpoint := newEndpoint([]string{nodeIP})
+	expEndpoint := necNewEndpoint([]string{nodeIP})
 	f.expectUpdateEndpointAction(expEndpoint)
 
 	f.run(getKey(service, t))
@@ -278,21 +278,21 @@ func TestBunchOfServices(t *testing.T) {
 	f := newNecFixture(t)
 
 	nodeIP := randomdata.IpV4Address()
-	node := newNode(nodeIP, true)
+	node := necNewNode(nodeIP, true)
 	f.nodeLister = append(f.nodeLister, node)
 	f.remoteObjects = append(f.remoteObjects, node)
 
-	service := newService()
+	service := necNewService()
 	f.serviceLister = append(f.serviceLister, service)
 	f.localObjects = append(f.localObjects, service)
-	service2 := newService()
+	service2 := necNewService()
 	service2.Name += "2"
 	f.serviceLister = append(f.serviceLister, service2)
 	f.localObjects = append(f.localObjects, service2)
 
-	expEndpoint := newEndpoint([]string{nodeIP})
+	expEndpoint := necNewEndpoint([]string{nodeIP})
 	f.expectCreateEndpointAction(expEndpoint)
-	expEndpoint2 := newEndpoint([]string{nodeIP})
+	expEndpoint2 := necNewEndpoint([]string{nodeIP})
 	expEndpoint2.Name += "2"
 	f.expectCreateEndpointAction(expEndpoint2)
 

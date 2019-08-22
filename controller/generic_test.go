@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
+
 	v1 "k8s.io/api/core/v1"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -54,6 +56,11 @@ type baseFixture struct {
 	informerFilter []filterAction
 }
 
+func init() {
+	spew.Config.DisablePointerAddresses = true
+	spew.Config.DisableMethods = true
+}
+
 func (b *baseFixture) filterInformerActions(actions []core.Action) []core.Action {
 	var ret []core.Action
 	for _, action := range actions {
@@ -76,7 +83,9 @@ func (b *baseFixture) checkActions() {
 	localActions := b.filterInformerActions(b.localClient.Actions())
 	for i, action := range localActions {
 		if len(b.localExpectedActions) < i+1 {
-			b.t.Errorf("%d unexpected localExpectedActions: %+v", len(localActions)-len(b.localExpectedActions), localActions[i:])
+			b.t.Errorf("%d unexpected local actions:\n%s",
+				len(localActions)-len(b.localExpectedActions),
+				spew.Sdump(localActions[i:]))
 			break
 		}
 
@@ -85,13 +94,17 @@ func (b *baseFixture) checkActions() {
 	}
 
 	if len(b.localExpectedActions) > len(localActions) {
-		b.t.Errorf("%d additional expected localExpectedActions:%+v", len(b.localExpectedActions)-len(localActions), b.localExpectedActions[len(localActions):])
+		b.t.Errorf("%d additional expected local actions:\n%s",
+			len(b.localExpectedActions)-len(localActions),
+			spew.Sdump(b.localExpectedActions[len(localActions):]))
 	}
 
 	remoteActions := b.filterInformerActions(b.remoteClient.Actions())
 	for i, action := range remoteActions {
 		if len(b.remoteExpectedActions) < i+1 {
-			b.t.Errorf("%d unexpected actions: %+v", len(remoteActions)-len(b.remoteExpectedActions), remoteActions[i:])
+			b.t.Errorf("%d unexpected remote actions:\n%s",
+				len(remoteActions)-len(b.remoteExpectedActions),
+				spew.Sdump(remoteActions[i:]))
 			break
 		}
 
@@ -100,7 +113,9 @@ func (b *baseFixture) checkActions() {
 	}
 
 	if len(b.remoteExpectedActions) > len(remoteActions) {
-		b.t.Errorf("%d additional expected actions:%+v", len(b.remoteExpectedActions)-len(remoteActions), b.remoteExpectedActions[len(remoteActions):])
+		b.t.Errorf("%d additional expected remote actions:\n%s",
+			len(b.remoteExpectedActions)-len(remoteActions),
+			spew.Sdump(b.remoteExpectedActions[len(remoteActions):]))
 	}
 }
 
