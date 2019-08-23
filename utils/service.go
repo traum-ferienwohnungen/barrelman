@@ -14,6 +14,11 @@ func ResponsibleForService(service *v1.Service) bool {
 		return false
 	}
 
+	// Check against a list of ignored namespaces (like kube-system)
+	if IgnoredNamespaces.IsIgnored(service.GetNamespace()) {
+		return false
+	}
+
 	// Ignore all services that don't have node ports
 	if service.Spec.Type != v1.ServiceTypeNodePort {
 		return false

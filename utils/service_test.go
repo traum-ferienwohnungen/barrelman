@@ -84,6 +84,18 @@ func TestResponsibleForService(t *testing.T) {
 			nil,
 			false,
 		},
+		{
+			"IgnoredNamespace",
+			&v1.Service{
+				ObjectMeta: metaV1.ObjectMeta{
+					Namespace: "kube-system",
+				},
+				Spec: v1.ServiceSpec{
+					Type: v1.ServiceTypeNodePort,
+				},
+			},
+			false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

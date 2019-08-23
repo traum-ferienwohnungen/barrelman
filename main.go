@@ -31,11 +31,13 @@ var (
 	remoteZone        = flag.String("remote-zone", "europe-west1-c", "Remote clusters zone")
 	remoteClusterName = flag.String("remote-cluster-name", "", "Remote clusters name")
 	resyncPeriod      = flag.Duration("resync-period", 2*time.Hour, "how often should all nodes be considered \"old\" (and processed again)")
+	// See init() for "ignore-namespace"
 )
 
 func init() {
 	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), `This tool needs to connect to two clusters calles "local" and "remote".
+		_, _ = fmt.Fprintf(flag.CommandLine.Output(),
+			`This tool needs to connect to two clusters calles "local" and "remote".
 The remote cluster will be watched for node changes.
 On change, service endpoints in local cluster will be modify to always contain a up to date list of node ips.
 
@@ -43,9 +45,12 @@ Local cluster may be defined via 'local-kubeconfig' and 'local-context'.
 Remote cluster must be defined via 'remote-project', 'remote-zone' and 'remote-cluster-name'.
 The the needed config will be auto generated via a Google service account (GOOGLE_APPLICATION_CREDENTIALS).
 `)
-		fmt.Fprintf(flag.CommandLine.Output(), "\nUsage of %s:\n", os.Args[0])
+		_, _ = fmt.Fprintf(flag.CommandLine.Output(), "\nUsage of %s:\n", os.Args[0])
 		flag.PrintDefaults()
 	}
+
+	flag.Var(utils.IgnoredNamespaces, "ignore-namespace",
+		"namespace to ignore services in, may be given multiple times. Prefix namespace with a dash to remove it from default")
 	klog.InitFlags(nil)
 }
 
