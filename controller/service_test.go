@@ -78,7 +78,7 @@ func (f *scFixture) runController(serviceName string, expectError bool) {
 	defer close(stopCh)
 	sI.Start(stopCh)
 
-	err := c.syncHandler(serviceName)
+	_, err := c.syncHandler(serviceName)
 	if !expectError && err != nil {
 		f.t.Errorf("error syncing foo: %v", err)
 	} else if expectError && err == nil {

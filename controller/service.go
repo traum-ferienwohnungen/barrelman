@@ -151,16 +151,17 @@ func (c *ServiceController) processNextItem() bool {
 		}
 		// Run the syncHandler, passing it the namespace/name string of the
 		// Foo resource to be synced.
-		if err := c.syncHandler(key); err != nil {
+		action, err := c.syncHandler(key)
+		if err != nil {
 			// Put the item back on the workqueue to handle any transient errors.
 			c.queue.AddRateLimited(key)
-			metrics.EndpointUpdateErrors.Inc()
+			metrics.ServiceUpdateErrors.WithLabelValues(string(action))
 			return fmt.Errorf("error syncing '%s': %s, requeuing", key, err.Error())
 		}
 		// Finally, if no error occurs we Forget this item so it does not
 		// get queued again until another change happens.
 		c.queue.Forget(obj)
-		metrics.EndpointUpdates.Inc()
+		metrics.ServiceUpdates.WithLabelValues(string(action))
 		return nil
 	}(key)
 
@@ -174,11 +175,11 @@ func (c *ServiceController) processNextItem() bool {
 // syncHandler fetches the object from indexer and does cache warmup
 // In case an error happened, it has to simply return the error.
 // The retry logic should not be part of the business logic.
-func (c *ServiceController) syncHandler(key string) error {
+func (c *ServiceController) syncHandler(key string) (ActionType, error) {
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		runtime.HandleError(fmt.Errorf("invalid resource key: %s", key))
-		return nil
+		return ActionTypeNone, nil
 	}
 
 	/*
@@ -209,7 +210,7 @@ func (c *ServiceController) syncHandler(key string) error {
 	}
 	remoteSvc, remoteExists, err := utils.GetService(getFunc)
 	if err != nil {
-		return err
+		return ActionTypeNone, err
 	}
 
 	getFunc = func() (*v1.Service, error) {
@@ -217,7 +218,7 @@ func (c *ServiceController) syncHandler(key string) error {
 	}
 	localSvc, localExists, err := utils.GetService(getFunc)
 	if err != nil {
-		return err
+		return ActionTypeNone, err
 	}
 
 	// Check what action we need to take on local cluster
@@ -226,11 +227,12 @@ func (c *ServiceController) syncHandler(key string) error {
 
 	switch action {
 	case ActionTypeAdd:
+		metrics.ServiceCount.Inc()
 		// Check if namespace exist
 		_, err := c.localClient.CoreV1().Namespaces().Get(namespace, metaV1.GetOptions{})
 		if err != nil {
 			if !errors.IsNotFound(err) {
-				return err
+				return action, err
 			}
 
 			// If namespace does not exist (in local), create it
@@ -241,7 +243,7 @@ func (c *ServiceController) syncHandler(key string) error {
 			})
 			if nsErr != nil {
 				klog.Errorf("Failed creating namespace '%s' in local cluster", namespace)
-				return nsErr
+				return action, nsErr
 			}
 		}
 		// Build dummy service
@@ -258,24 +260,25 @@ func (c *ServiceController) syncHandler(key string) error {
 				Type: v1.ServiceTypeNodePort,
 			},
 		})
-		return err
+		return action, err
 	case ActionTypeUpdate:
 		if utils.ServicePortsEqual(localSvc.Spec.Ports, remoteSvc.Spec.Ports) {
-			return nil
+			return action, nil
 		}
 		// Update localSvc with new port(s)
 		localSvc.Spec.Ports = remoteSvc.Spec.Ports
 		// FIXME: NodeEndpointController should pick this up and update all endpoints
 		_, err := c.localClient.CoreV1().Services(namespace).Update(localSvc)
-		return err
+		return action, err
 	case ActionTypeDelete:
 		// Delete localSvc
-		return c.localClient.CoreV1().Services(namespace).Delete(name, &metaV1.DeleteOptions{})
+		metrics.ServiceCount.Dec()
+		return action, c.localClient.CoreV1().Services(namespace).Delete(name, &metaV1.DeleteOptions{})
 	case ActionTypeNone:
-		return nil
+		return action, nil
 	}
 
-	return fmt.Errorf("something wired happened in service syncHandler")
+	return ActionTypeNone, fmt.Errorf("something wired happened in service syncHandler")
 }
 
 // enqueueService adds a service (key) to the queue
