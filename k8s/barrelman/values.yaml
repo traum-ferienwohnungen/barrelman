@@ -18,6 +18,7 @@ fullnameOverride: ""
 barrelman:
   gce_service_account: "undefined"
   resync_period: "2h"
+  verbosity: "2"
   remote:
     project: "undefined"
     cluster_name: "undefined"
