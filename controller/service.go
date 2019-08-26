@@ -64,7 +64,8 @@ func NewServiceController(
 			if !utils.ResponsibleForService(service) {
 				return
 			}
-			klog.Infof("ADD remote service %s/%s", service.GetNamespace(), service.GetName())
+
+			klog.V(3).Infof("ADD remote service %s/%s", service.GetNamespace(), service.GetName())
 			c.enqueueService(obj)
 		},
 		UpdateFunc: func(old, cur interface{}) {
@@ -77,7 +78,7 @@ func NewServiceController(
 			if !utils.ResponsibleForService(newService) && !utils.ResponsibleForService(oldService) {
 				return
 			}
-			klog.Infof("UPDATE remote service %s/%s", newService.GetNamespace(), newService.GetName())
+			klog.V(3).Infof("UPDATE remote service %s/%s", newService.GetNamespace(), newService.GetName())
 			c.enqueueService(cur)
 		},
 		DeleteFunc: func(obj interface{}) {
@@ -85,7 +86,7 @@ func NewServiceController(
 			if !utils.ResponsibleForService(service) {
 				return
 			}
-			klog.Infof("DELETE remote Service %s/%s", service.GetNamespace(), service.GetName())
+			klog.V(3).Infof("DELETE remote Service %s/%s", service.GetNamespace(), service.GetName())
 			c.enqueueService(obj)
 		},
 	})
@@ -268,7 +269,7 @@ func (c *ServiceController) syncHandler(key string) (ActionType, error) {
 		}
 		// Update localSvc with new port(s)
 		localSvc.Spec.Ports = remoteSvc.Spec.Ports
-		// FIXME: NodeEndpointController should pick this up and update all endpoints
+		// NodeEndpointController will pick this up and update endpoints
 		_, err := c.localClient.CoreV1().Services(namespace).Update(localSvc)
 		return action, err
 	case ActionTypeDelete:

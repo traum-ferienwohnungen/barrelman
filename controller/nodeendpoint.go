@@ -57,7 +57,7 @@ func NewNodeEndpointController(
 	serviceInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			service := obj.(*v1.Service)
-			klog.Infof("ADD local service %s/%s", service.GetNamespace(), service.GetName())
+			klog.V(3).Infof("ADD local service %s/%s", service.GetNamespace(), service.GetName())
 			c.enqueueService(obj)
 		},
 		UpdateFunc: func(old, cur interface{}) {
@@ -66,12 +66,12 @@ func NewNodeEndpointController(
 			if newService.ResourceVersion == oldService.ResourceVersion {
 				return
 			}
-			klog.Infof("UPDATE local service %s/%s", newService.GetNamespace(), newService.GetName())
+			klog.V(3).Infof("UPDATE local service %s/%s", newService.GetNamespace(), newService.GetName())
 			c.enqueueService(cur)
 		},
 		DeleteFunc: func(obj interface{}) {
 			service := obj.(*v1.Service)
-			klog.Infof("DELETE local service %s/%s", service.GetNamespace(), service.GetName())
+			klog.V(3).Infof("DELETE local service %s/%s", service.GetNamespace(), service.GetName())
 			c.enqueueService(obj)
 		},
 	})
@@ -257,7 +257,7 @@ func (c *NodeEndpointController) enqueueAllServices() {
 
 func (c *NodeEndpointController) addNode(obj interface{}) {
 	node := obj.(*v1.Node)
-	klog.Infof("ADD for Node %s", node.GetName())
+	klog.V(3).Infof("ADD for Node %s", node.GetName())
 	defer metrics.NodeCount.Inc()
 
 	// Check if node is ready
@@ -303,13 +303,13 @@ func (c *NodeEndpointController) updateNode(old, cur interface{}) {
 		return
 	}
 
-	klog.Infof("UPDATE for Node %s", newNode.GetName())
+	klog.V(3).Infof("UPDATE for Node %s", newNode.GetName())
 	c.enqueueAllServices()
 }
 
 func (c *NodeEndpointController) deleteNode(obj interface{}) {
 	node := obj.(*v1.Node)
-	klog.Infof("DELETE for Node %s", node.GetName())
+	klog.V(3).Infof("DELETE for Node %s", node.GetName())
 	defer metrics.NodeCount.Dec()
 
 	c.enqueueAllServices()
