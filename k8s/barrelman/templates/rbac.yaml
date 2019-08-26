@@ -15,10 +15,13 @@ metadata:
 rules:
   - apiGroups: [""]
     resources: ["services"]
-    verbs: ["list", "watch", "get"]
+    verbs: ["list", "watch", "get", "create", "update", "delete"]
   - apiGroups: [""]
     resources: ["endpoints"]
     verbs: ["get", "create", "update"]
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "create"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
