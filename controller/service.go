@@ -56,7 +56,8 @@ func NewServiceController(
 	c.remoteServiceLister = remoteInformer.Lister()
 	c.remoteSynced = remoteInformer.Informer().HasSynced
 
-	// Enqueue services with type: NodePort that are not ignored by annotation
+	// Enqueue services
+	// Check for labels, annotations and service type via utils.ResponsibleFor to reduce noise in queue
 	remoteInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			service := obj.(*v1.Service)
@@ -70,6 +71,7 @@ func NewServiceController(
 			newService := cur.(*v1.Service)
 			oldService := old.(*v1.Service)
 			if newService.ResourceVersion == oldService.ResourceVersion {
+				// This is the same object, e.g. resync
 				return
 			}
 			if !utils.ResponsibleForService(newService) && !utils.ResponsibleForService(oldService) {
@@ -198,7 +200,7 @@ func (c *ServiceController) syncHandler(key string) (ActionType, error) {
 		* Check if remoteService exists in local, do nothing if it is
 
 		delete:
-		* Delete remoteService from local if barrelman created it (FIXME: how to identify?)
+		* Delete remoteService from local if barrelman created it (utils.ResourceLabel)
 
 		update:
 		* Update local remoteService with new NodePort
