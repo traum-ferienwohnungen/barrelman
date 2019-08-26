@@ -223,7 +223,6 @@ func (c *ServiceController) syncHandler(key string) (ActionType, error) {
 
 	// Check what action we need to take on local cluster
 	action := getLocalAction(remoteExists, remoteSvc, localExists, localSvc)
-	klog.Infof("%s/%s: '%s'", namespace, name, action)
 
 	switch action {
 	case ActionTypeAdd:

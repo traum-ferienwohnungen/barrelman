@@ -10,41 +10,42 @@ import (
 // getLocalAction returns the type of action (ActionType) to take on local service
 func getLocalAction(remoteExists bool, remoteSvc *v1.Service, localExists bool, localSvc *v1.Service) ActionType {
 	if remoteExists && utils.ResponsibleForService(remoteSvc) {
-		klog.Infof("%s/%s responsible for remote", remoteSvc.GetNamespace(), remoteSvc.GetName())
+		klog.Infof("remote: %s/%s I'm responsible", remoteSvc.GetNamespace(), remoteSvc.GetName())
 
 		if localExists {
 			if !utils.OwnerOfService(localSvc) {
-				klog.Warningf("%s/%s we don't own this service, SKIP", localSvc.GetNamespace(), localSvc.GetName())
+				klog.Warningf("local: %s/%s I don't own this service, SKIP", localSvc.GetNamespace(), localSvc.GetName())
 				return ActionTypeNone
 			}
 
 			if !utils.ResponsibleForService(localSvc) {
-				klog.Warningf("%s/%s not responsible for local service, SKIP", localSvc.GetNamespace(), localSvc.GetName())
+				klog.Warningf("local: %s/%s not responsible for service, SKIP", localSvc.GetNamespace(), localSvc.GetName())
 				return ActionTypeNone
 			}
 
-			klog.Infof("%s/%s remote and local exist, UPDATE", localSvc.GetNamespace(), localSvc.GetName())
+			klog.Infof("remote,local: %s/%s both exist, UPDATE", localSvc.GetNamespace(), localSvc.GetName())
 			return ActionTypeUpdate
 		} else {
-			klog.Infof("%s/%s local does not exist, ADD", remoteSvc.GetNamespace(), remoteSvc.GetName())
+			klog.Infof("local: %s/%s does not exist, ADD", remoteSvc.GetNamespace(), remoteSvc.GetName())
 			return ActionTypeAdd
 		}
 	}
 
 	if !remoteExists || !utils.ResponsibleForService(remoteSvc) {
-		klog.Infoln("not responsible for remote")
+		// It's not completely sure that remoteSvc is not nil, so we can't log namespace and name
+		klog.Infoln("remote: not responsible")
 
 		if localExists {
 			if !utils.OwnerOfService(localSvc) {
-				klog.Warningf("%s/%s we don't own this service, SKIP", localSvc.GetNamespace(), localSvc.GetName())
+				klog.Warningf("local: %s/%s I don't own this service, SKIP", localSvc.GetNamespace(), localSvc.GetName())
 				return ActionTypeNone
 			}
 
 			if !utils.ResponsibleForService(localSvc) {
-				klog.Infof("%s/%s local exists but not responsible, SKIP", localSvc.GetNamespace(), localSvc.GetName())
+				klog.Infof("local: %s/%s exists but not responsible, SKIP", localSvc.GetNamespace(), localSvc.GetName())
 				return ActionTypeNone
 			}
-			klog.Infof("%s/%s local does exist, DELETE", localSvc.GetNamespace(), localSvc.GetName())
+			klog.Infof("local: %s/%s does exist, DELETE", localSvc.GetNamespace(), localSvc.GetName())
 			return ActionTypeDelete
 		}
 	}
