@@ -104,7 +104,24 @@ barrelman -v 3 \
 See [rbac.yaml](k8s/barrelman/templates/rbac.yaml)
 
 ## Remote cluster
-Needs service account with "Kubernetes Engine Viewer" IAM permission (to read node and service details)
+Needs service account with "Kubernetes Engine Viewer" IAM permission (to read node and service details).
+
+To create a service account, use:
+```bash
+PROJECT="gcp-project"
+gcloud --project="$PROJECT" iam service-accounts create barrelman --display-name barrelman
+
+# Grant Kubernetes Engine Viewer permission
+gcloud projects add-iam-policy-binding $PROJECT \
+    --member serviceAccount:barrelman@${PROJECT}.iam.gserviceaccount.com --role "roles/container.viewer"
+
+# Create a service account key (to be used in CI/CD)
+gcloud iam service-accounts keys create service-account.json \
+    --iam-account=barrelman@${PROJECT}.iam.gserviceaccount.com
+
+# Base64 encode the service account, store the output in GitLab CI variable REMOTE_SERVICE_ACCOUNT
+base64 -w0 < service-account.json
+```
 
 
 # Development

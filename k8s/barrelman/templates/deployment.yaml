@@ -28,6 +28,8 @@ spec:
           args:
             - -remote-project
             - {{ .Values.barrelman.remote.project }}
+            - -remote-zone
+            - {{ .Values.barrelman.remote.zone }}
             - -remote-cluster-name
             - {{ .Values.barrelman.remote.cluster_name }}
             - -resync-period
