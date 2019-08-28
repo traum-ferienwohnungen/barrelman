@@ -157,16 +157,20 @@ func (c *ServiceController) processNextItem() bool {
 		// Run the syncHandler, passing it the namespace/name string of the
 		// Foo resource to be synced.
 		action, err := c.syncHandler(key)
+		mA := string(action)
+		if action == ActionTypeNone {
+			mA = "None"
+		}
 		if err != nil {
 			// Put the item back on the workqueue to handle any transient errors.
 			c.queue.AddRateLimited(key)
-			metrics.ServiceUpdateErrors.WithLabelValues(string(action)).Inc()
+			metrics.ServiceUpdateErrors.WithLabelValues(mA).Inc()
 			return fmt.Errorf("error syncing '%s': %s, requeuing", key, err.Error())
 		}
 		// Finally, if no error occurs we Forget this item so it does not
 		// get queued again until another change happens.
 		c.queue.Forget(obj)
-		metrics.ServiceUpdates.WithLabelValues(string(action)).Inc()
+		metrics.ServiceUpdates.WithLabelValues(mA).Inc()
 		return nil
 	}(key)
 
