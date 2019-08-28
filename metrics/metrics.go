@@ -30,6 +30,13 @@ var (
 		},
 		[]string{"action"},
 	)
+	ObjectsQueued = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "barrelman_services_queued_total",
+			Help: "Total number of services that have been queued (by controller)",
+		},
+		[]string{"controller"},
+	)
 )
 
 func init() {
@@ -39,4 +46,5 @@ func init() {
 	prometheus.MustRegister(EndpointUpdateErrors)
 	prometheus.MustRegister(ServiceUpdates)
 	prometheus.MustRegister(ServiceUpdateErrors)
+	prometheus.MustRegister(ObjectsQueued)
 }

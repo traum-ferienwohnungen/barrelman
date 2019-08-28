@@ -238,6 +238,7 @@ func (c *NodeEndpointController) enqueueService(obj interface{}) {
 		return
 	}
 	c.queue.Add(key)
+	metrics.ObjectsQueued.WithLabelValues("nec").Inc()
 }
 
 // enqueueAllServices add all services to the queue
