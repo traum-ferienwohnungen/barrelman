@@ -55,6 +55,16 @@ func TestResponsibleForRemoteService(t *testing.T) {
 			false,
 		},
 		{
+			"NotNodePort",
+			&v1.Service{
+				ObjectMeta: metaV1.ObjectMeta{},
+				Spec: v1.ServiceSpec{
+					Type: v1.ServiceTypeLoadBalancer,
+				},
+			},
+			false,
+		},
+		{
 			"IgnoreResponsible",
 			&v1.Service{
 				ObjectMeta: metaV1.ObjectMeta{
