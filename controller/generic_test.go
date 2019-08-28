@@ -140,7 +140,7 @@ func checkAction(expected, actual core.Action, t *testing.T) {
 		object := a.GetObject()
 
 		if !reflect.DeepEqual(expObject, object) {
-			t.Errorf("Action %s %s has wrong object\nDiff:\n %s",
+			t.Errorf("Action %s %s has wrong object\nDiff: (expected, got)\n %s",
 				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintSideBySide(expObject, object))
 		}
 	case core.UpdateAction:
@@ -149,7 +149,7 @@ func checkAction(expected, actual core.Action, t *testing.T) {
 		object := a.GetObject()
 
 		if !reflect.DeepEqual(expObject, object) {
-			t.Errorf("Action %s %s has wrong object\nDiff:\n %s",
+			t.Errorf("Action %s %s has wrong object\nDiff: (expected, got)\n %s",
 				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintSideBySide(expObject, object))
 		}
 	case core.PatchAction:
@@ -158,7 +158,7 @@ func checkAction(expected, actual core.Action, t *testing.T) {
 		patch := a.GetPatch()
 
 		if !reflect.DeepEqual(expPatch, patch) {
-			t.Errorf("Action %s %s has wrong patch\nDiff:\n %s",
+			t.Errorf("Action %s %s has wrong patch\nDiff: (expected, got)\n %s",
 				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintSideBySide(expPatch, patch))
 		}
 	}
