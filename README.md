@@ -2,6 +2,9 @@
 Watches a remote clusters nodes and services for changes and updates local clusters services and endpoints
 accordingly.
 
+Developed and used to keep service reachable via in-cluser URLs from multiple clusters. This is "hacked" by creating
+dummy services in cluster A pointing to node IPs and ports of cluster B.
+
  
  
  
@@ -55,6 +58,29 @@ takes a lot of complexity out of barrelman to leave this constraint.
 
 If in doubt, wo could remove the check for equal `ResourceVersion` in ServiceConroller event handler and lower the
 resync period (that would, of cause, mean more traffic towards kubernetes API).
+
+### What to expect
+Imaging there is cluster X and Y (Nodes Xn and Yn) with barrelman running as Xb and Yb.
+
+
+#### Manual service creation
+* Create Service "foo/baz" (barrelman label, targetPort == NodePort of some service in X) in Y
+    * Endpoint(s) "foo/baz" are created in Y (pointing to Xn)
+* Change targetPort of "foo/baz" in Y
+    * Endpoint(s) "foo/baz" are in Y are updated accordingly
+
+#### Auto service creation
+* Create Service "foo/bar" (type NodePort) in X
+    * Namespace "foo" is created in Y
+    * Service "foo/bar" (Type: ClusterIP, targetPort == NodePort of "foo/bar" in X) is created in Y
+    * Endpoint(s) "foo/bar" are created in Y (pointing to Xn:targetPort)
+* Change NodePort of service "foo/bar" in X
+    * targetPort of service "foo/bar" in Y is updated accordingly
+    * Endpoint(s) "foo/bar" in Y are updated accordingly
+* Delete Service "foo/bar" in X
+    * Service "foo/bar" in Y is deleted
+    * Endpoint(s) "foo/bar" in Y are deleted
+
 
 
 # Run
