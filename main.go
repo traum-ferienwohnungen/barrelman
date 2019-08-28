@@ -31,6 +31,8 @@ var (
 	remoteZone        = flag.String("remote-zone", "europe-west1-c", "Remote clusters zone")
 	remoteClusterName = flag.String("remote-cluster-name", "", "Remote clusters name")
 	resyncPeriod      = flag.Duration("resync-period", 2*time.Hour, "how often should all nodes be considered \"old\" (and processed again)")
+	necWorkers        = flag.Uint("nec-workers", 4, "number of workers for NodeEndpointController")
+	scWorkers         = flag.Uint("sc-workers", 2, "number of workers for ServiceController")
 	// See init() for "ignore-namespace"
 )
 
@@ -162,12 +164,12 @@ func main() {
 	// This will block 'till stopCh
 	func() {
 		go func() {
-			if err = nodeEndpointController.Run(2, stopCh); err != nil {
+			if err = nodeEndpointController.Run(int(*necWorkers), stopCh); err != nil {
 				klog.Fatalf("Error running nodeEndpointController: %s", err.Error())
 			}
 		}()
 		go func() {
-			if err = serviceController.Run(2, stopCh); err != nil {
+			if err = serviceController.Run(int(*scWorkers), stopCh); err != nil {
 				klog.Fatalf("Error running serviceController: %s", err.Error())
 			}
 		}()

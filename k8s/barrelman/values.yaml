@@ -17,6 +17,8 @@ barrelman:
   gce_service_account: "undefined"
   resync_period: "2h"
   verbosity: "2"
+  necWorkers: "4"
+  scWorkers: "2"
   remote:
     project: "undefined"
     zone: "undefined"
