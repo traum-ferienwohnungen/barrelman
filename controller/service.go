@@ -234,7 +234,6 @@ func (c *ServiceController) syncHandler(key string) (ActionType, error) {
 
 	switch action {
 	case ActionTypeAdd:
-		metrics.ServiceCount.Inc()
 		// Check if namespace exist
 		_, err := c.localClient.CoreV1().Namespaces().Get(namespace, metaV1.GetOptions{})
 		if err != nil {
@@ -281,7 +280,6 @@ func (c *ServiceController) syncHandler(key string) (ActionType, error) {
 		return action, err
 	case ActionTypeDelete:
 		// Delete localSvc
-		metrics.ServiceCount.Dec()
 		return action, c.localClient.CoreV1().Services(namespace).Delete(name, &metaV1.DeleteOptions{})
 	case ActionTypeNone:
 		return action, nil
