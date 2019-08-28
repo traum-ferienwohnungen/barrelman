@@ -160,6 +160,7 @@ func TestCreatesService(t *testing.T) {
 	localService.Spec.Ports = []v1.ServicePort{
 		{
 			Name:       portName,
+			Port:       portNum,
 			TargetPort: intstr.FromInt(portNodePort),
 		},
 	}
@@ -181,6 +182,7 @@ func TestDoNothing(t *testing.T) {
 	localService.Spec.Ports = []v1.ServicePort{
 		{
 			Name:       portName,
+			Port:       portNum,
 			TargetPort: intstr.FromInt(portNodePort),
 		},
 	}
@@ -206,6 +208,7 @@ func TestUpdateService(t *testing.T) {
 	expectService.Spec.Ports = []v1.ServicePort{
 		{
 			Name:       portName,
+			Port:       portNum,
 			TargetPort: intstr.FromInt(portNodePort),
 		},
 	}
@@ -213,6 +216,7 @@ func TestUpdateService(t *testing.T) {
 	localService.Spec.Ports = []v1.ServicePort{
 		{
 			Name:       portName + "foooo",
+			Port:       portNum,
 			TargetPort: intstr.FromInt(portNodePort + 21),
 		},
 	}

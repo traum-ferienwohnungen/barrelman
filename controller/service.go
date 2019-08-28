@@ -296,10 +296,11 @@ func (c *ServiceController) syncHandler(key string) (ActionType, error) {
 func getDummyServicePorts(remoteSvc *v1.Service) []v1.ServicePort {
 	dummyPorts := make([]v1.ServicePort, len(remoteSvc.Spec.Ports))
 	for idx, port := range remoteSvc.Spec.Ports {
-		dummyPorts[idx] = v1.ServicePort{
-			Name:       port.Name,
-			TargetPort: intstr.FromInt(int(port.NodePort)),
-		}
+		// Ensure we don't modify the input
+		dummyPorts[idx] = *port.DeepCopy()
+		dummyPorts[idx].TargetPort = intstr.FromInt(int(port.NodePort))
+		// Unset NodePort as dummy service will be ClusterIP
+		dummyPorts[idx].NodePort = 0
 	}
 	return dummyPorts
 }
