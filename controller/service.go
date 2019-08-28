@@ -362,5 +362,5 @@ func (c *ServiceController) enqueueService(obj interface{}) {
 		return
 	}
 	c.queue.Add(key)
-	metrics.ObjectsQueued.WithLabelValues("sc").Inc()
+	metrics.ObjectsQueued.WithLabelValues("ServiceController").Inc()
 }
