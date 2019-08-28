@@ -232,9 +232,6 @@ func (c *ServiceController) syncHandler(key string) (ActionType, error) {
 
 	// Check what action we need to take on local cluster
 	action := getLocalAction(remoteExists, remoteSvc, localExists, localSvc)
-	if action != ActionTypeNone {
-		klog.Infof("performing \"%s\" action for service %s/%s", action, namespace, name)
-	}
 
 	switch action {
 	case ActionTypeAdd:
@@ -246,6 +243,7 @@ func (c *ServiceController) syncHandler(key string) (ActionType, error) {
 			}
 
 			// If namespace does not exist (in local), create it
+			klog.Infof("performing \"%s\" action for namespace %s", action, namespace)
 			_, nsErr := c.localClient.CoreV1().Namespaces().Create(&v1.Namespace{
 				ObjectMeta: metaV1.ObjectMeta{
 					Name: namespace,
@@ -259,6 +257,7 @@ func (c *ServiceController) syncHandler(key string) (ActionType, error) {
 		// Build dummy service ports
 		dummyPorts := getDummyServicePorts(remoteSvc)
 		// Create dummy service
+		klog.Infof("performing \"%s\" action for service %s/%s", action, namespace, name)
 		_, err = c.localClient.CoreV1().Services(namespace).Create(&v1.Service{
 			ObjectMeta: metaV1.ObjectMeta{
 				Name:      name,
@@ -275,15 +274,17 @@ func (c *ServiceController) syncHandler(key string) (ActionType, error) {
 	case ActionTypeUpdate:
 		dummyPorts := getDummyServicePorts(remoteSvc)
 		if utils.ServicePortsEqual(localSvc.Spec.Ports, dummyPorts) {
-			return action, nil
+			return ActionTypeNone, nil
 		}
 		// Update localSvc with new port(s)
 		localSvc.Spec.Ports = dummyPorts
 		// NodeEndpointController will pick this up and update endpoints
+		klog.Infof("performing \"%s\" action for service %s/%s", action, namespace, name)
 		_, err := c.localClient.CoreV1().Services(namespace).Update(localSvc)
 		return action, err
 	case ActionTypeDelete:
 		// Delete localSvc
+		klog.Infof("performing \"%s\" action for service %s/%s", action, namespace, name)
 		return action, c.localClient.CoreV1().Services(namespace).Delete(name, &metaV1.DeleteOptions{})
 	case ActionTypeNone:
 		return action, nil
