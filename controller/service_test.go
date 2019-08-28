@@ -136,7 +136,8 @@ func scNewService() *v1.Service {
 				{
 					Name:       portName,
 					Port:       portNum,
-					TargetPort: intstr.FromInt(portNodePort),
+					TargetPort: intstr.FromInt(portNum),
+					NodePort:   portNodePort,
 				},
 			},
 		},
@@ -155,6 +156,13 @@ func TestCreatesService(t *testing.T) {
 	// Expect a service with ResourceLabel in local cluster
 	localService := scNewService()
 	localService.Labels = utils.ResourceLabel
+	localService.Spec.Type = v1.ServiceTypeClusterIP
+	localService.Spec.Ports = []v1.ServicePort{
+		{
+			Name:       portName,
+			TargetPort: intstr.FromInt(portNodePort),
+		},
+	}
 	f.expectCreateServiceAction(localService)
 
 	f.run(getKey(remoteService, t))
@@ -169,6 +177,13 @@ func TestDoNothing(t *testing.T) {
 
 	localService := scNewService()
 	localService.Labels = utils.ResourceLabel
+	localService.Spec.Type = v1.ServiceTypeClusterIP
+	localService.Spec.Ports = []v1.ServicePort{
+		{
+			Name:       portName,
+			TargetPort: intstr.FromInt(portNodePort),
+		},
+	}
 	f.localObjects = append(f.localObjects, localService)
 
 	f.run(getKey(remoteService, t))
@@ -183,11 +198,21 @@ func TestUpdateService(t *testing.T) {
 
 	localService := scNewService()
 	localService.Labels = utils.ResourceLabel
+	// Simulate an already created local service to update
+	localService.Spec.Type = v1.ServiceTypeClusterIP
+
+	// Copy local service as expected and modify the Ports afterwards
 	expectService := localService.DeepCopy()
+	expectService.Spec.Ports = []v1.ServicePort{
+		{
+			Name:       portName,
+			TargetPort: intstr.FromInt(portNodePort),
+		},
+	}
+	// The local service has a different port slice, it needs an update
 	localService.Spec.Ports = []v1.ServicePort{
 		{
 			Name:       portName + "foooo",
-			Port:       portNum + 12,
 			TargetPort: intstr.FromInt(portNodePort + 21),
 		},
 	}
@@ -273,7 +298,7 @@ func TestGetLocalAction(t *testing.T) {
 					Type: v1.ServiceTypeLoadBalancer,
 				},
 			},
-			output: ActionTypeNone,
+			output: ActionTypeUpdate,
 		},
 		{
 			remoteExists: true,

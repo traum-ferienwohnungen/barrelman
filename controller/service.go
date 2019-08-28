@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"k8s.io/apimachinery/pkg/util/intstr"
+
 	"k8s.io/apimachinery/pkg/api/errors"
 
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -61,7 +63,7 @@ func NewServiceController(
 	remoteInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			service := obj.(*v1.Service)
-			if !utils.ResponsibleForService(service) {
+			if !utils.ResponsibleForRemoteService(service) {
 				return
 			}
 
@@ -75,7 +77,7 @@ func NewServiceController(
 				// This is the same object, e.g. resync
 				return
 			}
-			if !utils.ResponsibleForService(newService) && !utils.ResponsibleForService(oldService) {
+			if !utils.ResponsibleForRemoteService(newService) && !utils.ResponsibleForRemoteService(oldService) {
 				return
 			}
 			klog.V(3).Infof("UPDATE remote service %s/%s", newService.GetNamespace(), newService.GetName())
@@ -83,7 +85,7 @@ func NewServiceController(
 		},
 		DeleteFunc: func(obj interface{}) {
 			service := obj.(*v1.Service)
-			if !utils.ResponsibleForService(service) {
+			if !utils.ResponsibleForRemoteService(service) {
 				return
 			}
 			klog.V(3).Infof("DELETE remote Service %s/%s", service.GetNamespace(), service.GetName())
@@ -253,7 +255,8 @@ func (c *ServiceController) syncHandler(key string) (ActionType, error) {
 				return action, nsErr
 			}
 		}
-		// Build dummy service
+		// Build dummy service ports
+		dummyPorts := getDummyServicePorts(remoteSvc)
 		// Create dummy service
 		_, err = c.localClient.CoreV1().Services(namespace).Create(&v1.Service{
 			ObjectMeta: metaV1.ObjectMeta{
@@ -262,18 +265,19 @@ func (c *ServiceController) syncHandler(key string) (ActionType, error) {
 				Labels:    utils.ResourceLabel,
 			},
 			Spec: v1.ServiceSpec{
-				Ports: remoteSvc.Spec.Ports,
-				// We want to create NodePort services only so Type is hardcoded
-				Type: v1.ServiceTypeNodePort,
+				Ports: dummyPorts,
+				// We want to create ClusterIP services only so Type is hardcoded
+				Type: v1.ServiceTypeClusterIP,
 			},
 		})
 		return action, err
 	case ActionTypeUpdate:
-		if utils.ServicePortsEqual(localSvc.Spec.Ports, remoteSvc.Spec.Ports) {
+		dummyPorts := getDummyServicePorts(remoteSvc)
+		if utils.ServicePortsEqual(localSvc.Spec.Ports, dummyPorts) {
 			return action, nil
 		}
 		// Update localSvc with new port(s)
-		localSvc.Spec.Ports = remoteSvc.Spec.Ports
+		localSvc.Spec.Ports = dummyPorts
 		// NodeEndpointController will pick this up and update endpoints
 		_, err := c.localClient.CoreV1().Services(namespace).Update(localSvc)
 		return action, err
@@ -288,9 +292,23 @@ func (c *ServiceController) syncHandler(key string) (ActionType, error) {
 	return ActionTypeNone, fmt.Errorf("something wired happened in service syncHandler")
 }
 
+// getDummyServicePorts created a new slice of ServicePort to be used for the local dummy service
+// For each port, the remote service NodePort must be the dummy service target port (so endpoints will
+// point to remote NodePort)
+func getDummyServicePorts(remoteSvc *v1.Service) []v1.ServicePort {
+	dummyPorts := make([]v1.ServicePort, len(remoteSvc.Spec.Ports))
+	for idx, port := range remoteSvc.Spec.Ports {
+		dummyPorts[idx] = v1.ServicePort{
+			Name:       port.Name,
+			TargetPort: intstr.FromInt(int(port.NodePort)),
+		}
+	}
+	return dummyPorts
+}
+
 // getLocalAction returns the type of action (ActionType) to take on local service
 func getLocalAction(remoteExists bool, remoteSvc *v1.Service, localExists bool, localSvc *v1.Service) ActionType {
-	if remoteExists && utils.ResponsibleForService(remoteSvc) {
+	if remoteExists && utils.ResponsibleForRemoteService(remoteSvc) {
 		klog.V(4).Infof("remote: %s/%s I'm responsible", remoteSvc.GetNamespace(), remoteSvc.GetName())
 
 		if localExists {
@@ -312,7 +330,7 @@ func getLocalAction(remoteExists bool, remoteSvc *v1.Service, localExists bool, 
 		}
 	}
 
-	if !remoteExists || !utils.ResponsibleForService(remoteSvc) {
+	if !remoteExists || !utils.ResponsibleForRemoteService(remoteSvc) {
 		// It's not completely sure that remoteSvc is not nil, so we can't log namespace and name
 		klog.V(4).Infoln("remote: not responsible")
 

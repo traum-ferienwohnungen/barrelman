@@ -66,6 +66,7 @@ func EndpointSubset(service *v1.Service, nodes []*v1.Node) ([]v1.EndpointSubset,
 }
 
 // NewEndPoints creates a new Endpoints object for the given service
+// The endpointPort(s) will be set to the targetPort(s) of the given service
 func NewEndpoint(service *v1.Service, nodes []*v1.Node) (*v1.Endpoints, error) {
 	epSubset, err := EndpointSubset(service, nodes)
 	if err != nil {

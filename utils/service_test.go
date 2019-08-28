@@ -14,7 +14,7 @@ import (
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestResponsibleForService(t *testing.T) {
+func TestResponsibleForRemoteService(t *testing.T) {
 	tests := []struct {
 		name    string
 		service *v1.Service
@@ -99,8 +99,8 @@ func TestResponsibleForService(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := ResponsibleForService(tt.service); got != tt.want {
-				t.Errorf("ResponsibleForService() = %v, want %v", got, tt.want)
+			if got := ResponsibleForRemoteService(tt.service); got != tt.want {
+				t.Errorf("ResponsibleForRemoteService() = %v, want %v", got, tt.want)
 			}
 		})
 	}

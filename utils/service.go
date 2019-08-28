@@ -7,7 +7,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 )
 
-// ResponsibleForService checks if barrelman is responsible for this service (service is type: NodePort and not ignored)
+// ResponsibleForService checks if barrelman is responsible for this service
+// e.g. service is not not ignored by annotation or in an ignored namespace
 // Will return false if service is nil
 func ResponsibleForService(service *v1.Service) bool {
 	if service == nil {
@@ -19,16 +20,27 @@ func ResponsibleForService(service *v1.Service) bool {
 		return false
 	}
 
-	// Ignore all services that don't have node ports
-	if service.Spec.Type != v1.ServiceTypeNodePort {
-		return false
-	}
-
 	// Services with the "tfw.io/barrelman: ignore" annotation should be ignored
 	for k, v := range service.Annotations {
 		if k == LabelAnnotationKey && v == AnnotationValueIgnore {
 			return false
 		}
+	}
+
+	return true
+}
+
+// ResponsibleForRemoteService checks if barrelman is responsible in general (via ResponsibleForService)
+// and if the service is of type NodePort
+func ResponsibleForRemoteService(service *v1.Service) bool {
+	responsible := ResponsibleForService(service)
+	if !responsible {
+		return false
+	}
+
+	// Ignore all remote services that don't have node ports
+	if service.Spec.Type != v1.ServiceTypeNodePort {
+		return false
 	}
 
 	return true
