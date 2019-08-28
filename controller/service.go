@@ -228,11 +228,9 @@ func (c *ServiceController) syncHandler(key string) (ActionType, error) {
 
 	// Check what action we need to take on local cluster
 	action := getLocalAction(remoteExists, remoteSvc, localExists, localSvc)
-	logAction := string(action)
-	if action == ActionTypeNone {
-		logAction = "None"
+	if action != ActionTypeNone {
+		klog.Infof("performing \"%s\" action for service %s/%s", action, namespace, name)
 	}
-	klog.Infof("performing \"%s\" action for service %s/%s", logAction, namespace, name)
 
 	switch action {
 	case ActionTypeAdd:
