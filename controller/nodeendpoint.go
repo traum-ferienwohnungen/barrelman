@@ -152,6 +152,7 @@ func (c *NodeEndpointController) processNextItem() bool {
 			// Put the item back on the workqueue to handle any transient errors.
 			c.queue.AddRateLimited(key)
 			metrics.EndpointUpdateErrors.Inc()
+			metrics.ObjectsQueued.WithLabelValues("NodeEndpointController", "true").Inc()
 			return fmt.Errorf("error syncing '%s': %s, requeuing", key, err.Error())
 		}
 		// Finally, if no error occurs we Forget this item so it does not
@@ -238,7 +239,7 @@ func (c *NodeEndpointController) enqueueService(obj interface{}) {
 		return
 	}
 	c.queue.Add(key)
-	metrics.ObjectsQueued.WithLabelValues("NodeEndpointController").Inc()
+	metrics.ObjectsQueued.WithLabelValues("NodeEndpointController", "false").Inc()
 }
 
 // enqueueAllServices add all services to the queue

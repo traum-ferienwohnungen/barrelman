@@ -165,6 +165,7 @@ func (c *ServiceController) processNextItem() bool {
 			// Put the item back on the workqueue to handle any transient errors.
 			c.queue.AddRateLimited(key)
 			metrics.ServiceUpdateErrors.WithLabelValues(mA).Inc()
+			metrics.ObjectsQueued.WithLabelValues("ServiceController", "true").Inc()
 			return fmt.Errorf("error syncing '%s': %s, requeuing", key, err.Error())
 		}
 		// Finally, if no error occurs we Forget this item so it does not
@@ -362,5 +363,5 @@ func (c *ServiceController) enqueueService(obj interface{}) {
 		return
 	}
 	c.queue.Add(key)
-	metrics.ObjectsQueued.WithLabelValues("ServiceController").Inc()
+	metrics.ObjectsQueued.WithLabelValues("ServiceController", "false").Inc()
 }

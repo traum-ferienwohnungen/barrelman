@@ -35,7 +35,7 @@ var (
 			Name: "barrelman_services_queued_total",
 			Help: "Total number of services that have been queued (by controller)",
 		},
-		[]string{"controller"},
+		[]string{"controller", "requeued"},
 	)
 )
 
