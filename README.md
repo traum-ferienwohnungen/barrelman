@@ -47,18 +47,6 @@ Watch for changes of services objects in _remote-cluster_:
     * All service ports of the remote service
 * Delete: Remove dummy service in _local-cluster_ if it was created by barrelman
 
-**Constraints:**
-
-Services in _local-cluster_ are not watched by ServiceController. That means that if a _local-cluster_ service
-which prevented barrelman from creating a _managed-resource_ gets removed, the _managed-resource_ will not be
-created until the corresponding service object in _remote-cluster_ changes.
-
-I'm not sure if this is smart but it's the only case in which a _local-cluster_ watcher would be needed. So it
-takes a lot of complexity out of barrelman to leave this constraint.
-
-If in doubt, wo could remove the check for equal `ResourceVersion` in ServiceConroller event handler and lower the
-resync period (that would, of cause, mean more traffic towards kubernetes API).
-
 ### What to expect
 Imaging there is cluster X and Y (Nodes Xn and Yn) with barrelman running as Xb and Yb.
 
