@@ -39,6 +39,10 @@ ServiceController operates on services in _remote-cluster_ if they are not withi
 Services in _local-cluster_ are only updated/deleted if they are labeled with
 (`tfw.io/barrelman: managed-resource`). Namespaces created by barrelman are never removed.
 
+Watch for changes of service objects in _local-cluster_:
+* Add/Modify: do nothing
+* Delete: Check if there is a corresponding service in _remote-cluster_ and add a dummy as needed
+
 Watch for changes of services objects in _remote-cluster_:
 * Add: Create a dummy service in _local-cluster_ (to be picked up by [NodeEndpointController](#NodeEndpointController))
     * Create namespace in _local-cluster_ (if needed)
