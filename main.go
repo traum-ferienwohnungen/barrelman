@@ -124,18 +124,21 @@ func main() {
 	}
 	klog.Infof("%d nodes in remote-cluster\n", len(rnodes.Items))
 
-	localInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(
+	// FIXME: Would be nice to have only one localInformerFactory
+	// and apply the filter in NodeEndpointController
+	localFilteredInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(
 		localClientset,
 		*resyncPeriod,
 		kubeinformers.WithTweakListOptions(func(options *metaV1.ListOptions) {
 			options.LabelSelector = utils.ServiceSelector.String()
 		}),
 	)
+	localInformerFactory := kubeinformers.NewSharedInformerFactory(localClientset, *resyncPeriod)
 	remoteInformerFactory := kubeinformers.NewSharedInformerFactory(remoteClientset, *resyncPeriod)
 
 	nodeEndpointController := controller.NewNodeEndpointController(
 		localClientset, remoteClientset,
-		localInformerFactory.Core().V1().Services(),
+		localFilteredInformerFactory.Core().V1().Services(),
 		remoteInformerFactory.Core().V1().Nodes(),
 	)
 
@@ -147,8 +150,9 @@ func main() {
 
 	// Ramp up the informer loops
 	// They run all registered informer in go routines
-	localInformerFactory.Start(stopCh)
+	localFilteredInformerFactory.Start(stopCh)
 	remoteInformerFactory.Start(stopCh)
+	localInformerFactory.Start(stopCh)
 
 	// Register http handler for metrics and readiness/liveness probe
 	http.Handle("/metrics", promhttp.Handler())
