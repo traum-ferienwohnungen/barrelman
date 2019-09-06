@@ -142,6 +142,7 @@ func main() {
 	serviceController := controller.NewServiceController(
 		localClientset, remoteClientset,
 		remoteInformerFactory.Core().V1().Services(),
+		localInformerFactory.Core().V1().Services(),
 	)
 
 	// Ramp up the informer loops

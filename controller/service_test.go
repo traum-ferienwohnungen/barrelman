@@ -22,7 +22,8 @@ type scFixture struct {
 	baseFixture
 
 	// Objects to put in the stores
-	serviceLister []*v1.Service
+	remoteServiceLister []*v1.Service
+	localServiceLister  []*v1.Service
 }
 
 func newScFixture(t *testing.T) *scFixture {
@@ -42,29 +43,37 @@ func newScFixture(t *testing.T) *scFixture {
 	return f
 }
 
-func (f *scFixture) newController() (*ServiceController, kubeinformers.SharedInformerFactory) {
+func (f *scFixture) newController() (*ServiceController, kubeinformers.SharedInformerFactory, kubeinformers.SharedInformerFactory) {
 	f.localClient = k8sfake.NewSimpleClientset(f.localObjects...)
 	f.remoteClient = k8sfake.NewSimpleClientset(f.remoteObjects...)
 
-	serviceInformer := kubeinformers.NewSharedInformerFactory(f.remoteClient, noResyncPeriodFunc())
+	remoteServiceInformer := kubeinformers.NewSharedInformerFactory(f.remoteClient, noResyncPeriodFunc())
+	localServiceInformer := kubeinformers.NewSharedInformerFactory(f.localClient, noResyncPeriodFunc())
 
 	c := NewServiceController(
 		f.localClient,
 		f.remoteClient,
-		serviceInformer.Core().V1().Services(),
+		remoteServiceInformer.Core().V1().Services(),
+		localServiceInformer.Core().V1().Services(),
 	)
 
 	c.remoteSynced = alwaysReady
 
 	// Preload test objects into informers
-	for _, s := range f.serviceLister {
-		err := serviceInformer.Core().V1().Services().Informer().GetIndexer().Add(s)
+	for _, s := range f.remoteServiceLister {
+		err := remoteServiceInformer.Core().V1().Services().Informer().GetIndexer().Add(s)
 		if err != nil {
-			f.t.Errorf("Failed to add service: %v", err)
+			f.t.Errorf("Failed to add remote service: %v", err)
+		}
+	}
+	for _, s := range f.localServiceLister {
+		err := localServiceInformer.Core().V1().Services().Informer().GetIndexer().Add(s)
+		if err != nil {
+			f.t.Errorf("Failed to add local service: %v", err)
 		}
 	}
 
-	return c, serviceInformer
+	return c, remoteServiceInformer, localServiceInformer
 }
 
 func (f *scFixture) run(serviceName string) {
@@ -72,11 +81,12 @@ func (f *scFixture) run(serviceName string) {
 }
 
 func (f *scFixture) runController(serviceName string, expectError bool) {
-	c, sI := f.newController()
+	c, rSI, lSI := f.newController()
 
 	stopCh := make(chan struct{})
 	defer close(stopCh)
-	sI.Start(stopCh)
+	rSI.Start(stopCh)
+	lSI.Start(stopCh)
 
 	_, err := c.syncHandler(serviceName)
 	if !expectError && err != nil {
@@ -148,7 +158,7 @@ func TestCreatesService(t *testing.T) {
 	f := newScFixture(t)
 
 	remoteService := scNewService()
-	f.serviceLister = append(f.serviceLister, remoteService)
+	f.remoteServiceLister = append(f.remoteServiceLister, remoteService)
 	f.remoteObjects = append(f.remoteObjects, remoteService)
 
 	f.expectCreateNamespaceAction(scNewNamespace())
@@ -173,7 +183,7 @@ func TestDoNothing(t *testing.T) {
 	f := newScFixture(t)
 
 	remoteService := scNewService()
-	f.serviceLister = append(f.serviceLister, remoteService)
+	f.remoteServiceLister = append(f.remoteServiceLister, remoteService)
 	f.remoteObjects = append(f.remoteObjects, remoteService)
 
 	localService := scNewService()
@@ -195,7 +205,7 @@ func TestUpdateService(t *testing.T) {
 	f := newScFixture(t)
 
 	remoteService := scNewService()
-	f.serviceLister = append(f.serviceLister, remoteService)
+	f.remoteServiceLister = append(f.remoteServiceLister, remoteService)
 	f.remoteObjects = append(f.remoteObjects, remoteService)
 
 	localService := scNewService()
@@ -231,7 +241,7 @@ func TestDeleteService(t *testing.T) {
 
 	remoteService := scNewService()
 	remoteService.Annotations = utils.IgnoreAnnotation
-	f.serviceLister = append(f.serviceLister, remoteService)
+	f.remoteServiceLister = append(f.remoteServiceLister, remoteService)
 	f.remoteObjects = append(f.remoteObjects, remoteService)
 
 	localService := scNewService()

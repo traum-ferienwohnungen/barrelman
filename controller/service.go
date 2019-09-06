@@ -40,6 +40,8 @@ type ServiceController struct {
 	// Informer and Indexer for services and their sync state
 	remoteServiceLister corelisters.ServiceLister
 	remoteSynced        cache.InformerSynced
+	localServiceLister  corelisters.ServiceLister
+	localSynced         cache.InformerSynced
 
 	// queue will queue all services that need to be need to create dummy's for (in local)
 	queue workqueue.RateLimitingInterface
@@ -47,7 +49,8 @@ type ServiceController struct {
 
 func NewServiceController(
 	localClient, remoteClient kubernetes.Interface,
-	remoteInformer coreinformers.ServiceInformer) *ServiceController {
+	remoteInformer coreinformers.ServiceInformer,
+	localInformer coreinformers.ServiceInformer) *ServiceController {
 
 	c := &ServiceController{
 		localClient:  localClient,
@@ -89,6 +92,20 @@ func NewServiceController(
 				return
 			}
 			klog.V(3).Infof("DELETE remote Service %s/%s", service.GetNamespace(), service.GetName())
+			c.enqueueService(obj)
+		},
+	})
+
+	c.localServiceLister = localInformer.Lister()
+	c.localSynced = localInformer.Informer().HasSynced
+
+	// Enqueue services that have been deleted in local
+	// This is the case when we've already deployed to VPC cluster and deleting the helm release in legacy cluster
+	// afterwards. In that case, we want barrelman to create a dummy service in local-cluster immediately.
+	localInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		DeleteFunc: func(obj interface{}) {
+			service := obj.(*v1.Service)
+			klog.V(3).Infof("DELETE local Service %s/%s", service.GetNamespace(), service.GetName())
 			c.enqueueService(obj)
 		},
 	})
