@@ -5,8 +5,8 @@
 replicaCount: 1
 
 image:
-  repository: ""
-  tag: undefined
+  repository: "traumfewo/barrelman"
+  tag: "v0.1.0"
   pullPolicy: IfNotPresent
 
 nameOverride: ""
