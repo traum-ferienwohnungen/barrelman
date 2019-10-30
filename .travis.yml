@@ -1,0 +1,37 @@
+language: go
+
+go:
+  - 1.12.x
+
+cache:
+  directories:
+    - $HOME/.cache/go-build
+    - $HOME/gopath/pkg/mod
+
+env:
+  global:
+    - GO111MODULE=on
+    - secure: "eba4j3IExESuA15iyCwXdsRs38WLgdr0+xHJMz5vO6myPYfOedFUPzVHaruTmYcsqewRX9UwIvacTFfpk6XzUzCrJlGk4s8OQtTyjw6OkgGeY6H1PQJOF93fZMvyDfvsjw+WRWdZmTOIcZ47HzX32faEDa1+7GhoG4HakntZj/GoBzcFLzwHG2nudLquZtZ5A0/bkbqIPTFTp+PumV4J5sA0e2lvKo299xElFJT2pvK0pzyhAH0PNmWV5xB79AZ+IcZIsqXH1D139HGofxhvkM8zb+1RZZ8NbpUY+t0xDRiJ2t9C4LVDrsTU65Oreb2n76yHG3bQcCgFdp5LkDOTGSHYg7IMG2zGVS0YAkondo83L2mwoBaF++iGJk4koS4mrTT0+YB4ke4xqEEgfy1iA9e/gU0JYdfMcDyp7XPbb2oGYug5UJW6UAdwxYSOQ//n7lyEZUSoEtq0R6I+BB4La0EsLRNaeR/G7c3HHpZH+0JqviOXJO6XmpAaaxMA+ea4NBSUeHr3NCSt9qno86+CXWMCw4skPrpJ2dCB1AzzL0FsrnSSzETgUaTIi63K8AUS7fwrpVjEfNRR8yXWX3ZL8qn3edJH6zNRMwYSPoM0X9zmEim4wd8SK1bGR8w9+4a3HfE1kBEVVl6SwLFMFSMYkFgwunrWowVV02S5wzZIvos="
+    - secure: "XSyyVzdp/XUghZq9gwmpZuLLiHqGCDsM6IUDDjjIcUhg3K6la34Ccj81HYNhzZUv+jZUhL9ptpZU+spZ6oLxFRazzilAb0GCjL75rJXzQO5nXBDYOuFwBLiFVWfMs4tI4Ekpdhf+WObdBduEBkZ1B3SchMzsuMrbb3gkUmM44Y+ZFE0LpLcmrhSXJBfjCsotzc0eSGRr1ctoUX/j6dmtqLHS78iQGHbeHERAtp1W6o2MmYURe5k2I9Ml4htamFlVej+aUnpSMJA6zUtO20Rssgbz5rehVRbia1PP1xAvUoNWAWs2bYYdpPMBTFcfPZdMJ+KkYU4E9hvZcK0exKwZZRdqD/wEYOUklAPcfb7jnIVzixvaC1UNGwiDTQ5lHzdfjOB8tnPEJSxEMSgDM/C1kdgCl3mS4ZcwhLXamIGJPruBRZlbZaKZWHlTMUYDpLwdECkmiG+NkgF0RipTuFQCXjgUEkd1vnDOx2I8u5cSEPWof5FRXGhyHaBXUBmzCMgnSJABjPQhMlbKHbCtI9vAy0NIpvZMFI2l21mhjh7W7F0Gisc0bJ81gAmvjZJ38jeGYseVRFmLE6mwofMV4wliELD7ApCVF0dpzwU3AYPAA3KidFlvGc+9956fJgto/SJ3zSjDug1GTSPw4beCdsPqXswZXPbCWY67RQflYUeIaYE="
+
+script:
+  - make lint
+  - make race
+  - make msan
+  - make build
+
+deploy:
+  - provider: releases
+    skip_cleanup: true
+    api_key:
+      secure: VwRo0RIPc3/oL9C4jksmdtPdp+O/vHLx/zLq/xSs+E0O33b+o3S1B9faUMQE+kQDtukd2SBFFXCXr2mOrjm3LDsFbAor7sH4yIQl4UOqygnB5xLYZtVPvIw6AMD5XMnBi5cMo+z6orQiismzHTGXUyQ1qfXVUzfcAqC8vUetwBPR4U1lRUWsNi5pQ5EtSykS4nwJTWk+T1PZC1kjy0TD/8Je6XRLLORk0ygYd6I3qfYQolEC0dMDTAh2czqAfF7tpdTg4oN34OkIGMOLLnHkNbBzQX8Bs4PNEwEy9mYw3IXOZjK1hyp2w3FSqSYAVg9fhjxohRcIhOtCerf+iblP9hJ/7VITSTbMgLgAIlKJlaT1dxffIIwpN80Ywh13cy6KsJdFB19/qgeqc/AMkoiy5xLkM87rR/uGY3OXWpuJZw/XGpviAx4wz10Me6T4A/cYnVqt7+tQs8xCW/Abms0ak65XJJC4M7eNbJvtADHOrmZDRew+b2uuTEIHekvY77rXrxIkTNMB3RQcIEwTe/n9uJe7D6AsAIizql5Ajnx+O1uXv7xrjZKm3ILQVGYqSFb5IWFP7akePFOwgYZYqVoRmZEsSLDyxGUjtKXXwNlf3Ker4loiFtDZoNYNTtyMrqjJvu60lEb3xRHgYaAehrbspBpBy6NXjjFRVfoXDZ+USUo=
+    file_glob: true
+    file: barrelman
+    on:
+      repo: traum-ferienwohnungen/barrelman
+      tags: true
+  - provider: script
+    script: echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin && docker build -t traumfewo/barrelman:${TRAVIS_TAG} . && docker push traumfewo/barrelman:${TRAVIS_TAG}
+    on:
+      repo: traum-ferienwohnungen/barrelman
+      tags: true
