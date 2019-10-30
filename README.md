@@ -5,10 +5,6 @@ accordingly.
 Developed and used to keep service reachable via in-cluser URLs from multiple clusters. This is "hacked" by creating
 dummy services in cluster A pointing to node IPs and ports of cluster B.
 
- 
- 
- 
-
 ## Terms
 * remote(-cluster) is always the cluster who's nodes and services are being watched
 * local(-cluster) is always the cluster to manage services and endpoints in
@@ -93,7 +89,7 @@ barrelman -v 3 \
 
 # Permissions:
 ## Local cluster
-See [rbac.yaml](k8s/barrelman/templates/rbac.yaml)
+See [rbac.yaml](helm/barrelman/templates/rbac.yaml)
 
 ## Remote cluster
 Needs service account with "Kubernetes Engine Viewer" IAM permission (to read node and service details).
