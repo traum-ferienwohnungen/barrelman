@@ -5,6 +5,8 @@ accordingly.
 Developed and used to keep service reachable via in-cluser URLs from multiple clusters. This is "hacked" by creating
 dummy services in cluster A pointing to node IPs and ports of cluster B.
 
+Currently the authentication towards the remote cluster is tightened to Google Kubernetes Engine clusters.
+
 ## Terms
 * remote(-cluster) is always the cluster who's nodes and services are being watched
 * local(-cluster) is always the cluster to manage services and endpoints in
