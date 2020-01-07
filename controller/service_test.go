@@ -43,7 +43,7 @@ func newScFixture(t *testing.T) *scFixture {
 	return f
 }
 
-func (f *scFixture) newController() (*ServiceController, kubeinformers.SharedInformerFactory, kubeinformers.SharedInformerFactory) {
+func (f *scFixture) newController(createNodePortSvc bool) (*ServiceController, kubeinformers.SharedInformerFactory, kubeinformers.SharedInformerFactory) {
 	f.localClient = k8sfake.NewSimpleClientset(f.localObjects...)
 	f.remoteClient = k8sfake.NewSimpleClientset(f.remoteObjects...)
 
@@ -51,10 +51,9 @@ func (f *scFixture) newController() (*ServiceController, kubeinformers.SharedInf
 	localServiceInformer := kubeinformers.NewSharedInformerFactory(f.localClient, noResyncPeriodFunc())
 
 	c := NewServiceController(
-		f.localClient,
-		f.remoteClient,
-		remoteServiceInformer.Core().V1().Services(),
-		localServiceInformer.Core().V1().Services(),
+		f.localClient, f.remoteClient,
+		remoteServiceInformer.Core().V1().Services(), localServiceInformer.Core().V1().Services(),
+		createNodePortSvc,
 	)
 
 	c.remoteSynced = alwaysReady
@@ -76,12 +75,16 @@ func (f *scFixture) newController() (*ServiceController, kubeinformers.SharedInf
 	return c, remoteServiceInformer, localServiceInformer
 }
 
-func (f *scFixture) run(serviceName string) {
-	f.runController(serviceName, false)
+func (f *scFixture) runClusterIP(serviceName string) {
+	f.runController(serviceName, false, false)
 }
 
-func (f *scFixture) runController(serviceName string, expectError bool) {
-	c, rSI, lSI := f.newController()
+func (f *scFixture) runNodePort(serviceName string) {
+	f.runController(serviceName, true, false)
+}
+
+func (f *scFixture) runController(serviceName string, createNodePortSvc bool, expectError bool) {
+	c, rSI, lSI := f.newController(createNodePortSvc)
 
 	stopCh := make(chan struct{})
 	defer close(stopCh)
@@ -176,7 +179,33 @@ func TestCreatesService(t *testing.T) {
 	}
 	f.expectCreateServiceAction(localService)
 
-	f.run(getKey(remoteService, t))
+	f.runClusterIP(getKey(remoteService, t))
+}
+
+func TestCreatesNodePortService(t *testing.T) {
+	f := newScFixture(t)
+
+	remoteService := scNewService()
+	f.remoteServiceLister = append(f.remoteServiceLister, remoteService)
+	f.remoteObjects = append(f.remoteObjects, remoteService)
+
+	f.expectCreateNamespaceAction(scNewNamespace())
+
+	// Expect a service with ResourceLabel in local cluster
+	localService := scNewService()
+	localService.Labels = utils.ResourceLabel
+	localService.Spec.Type = v1.ServiceTypeNodePort
+	localService.Spec.Ports = []v1.ServicePort{
+		{
+			Name:       portName,
+			Port:       portNum,
+			TargetPort: intstr.FromInt(portNodePort),
+			NodePort:   portNodePort,
+		},
+	}
+	f.expectCreateServiceAction(localService)
+
+	f.runNodePort(getKey(remoteService, t))
 }
 
 func TestDoNothing(t *testing.T) {
@@ -198,7 +227,7 @@ func TestDoNothing(t *testing.T) {
 	}
 	f.localObjects = append(f.localObjects, localService)
 
-	f.run(getKey(remoteService, t))
+	f.runClusterIP(getKey(remoteService, t))
 }
 
 func TestUpdateService(t *testing.T) {
@@ -233,7 +262,45 @@ func TestUpdateService(t *testing.T) {
 	f.localObjects = append(f.localObjects, localService)
 
 	f.expectUpdateServiceAction(expectService)
-	f.run(getKey(remoteService, t))
+	f.runClusterIP(getKey(remoteService, t))
+}
+
+func TestUpdateServiceNodePort(t *testing.T) {
+	f := newScFixture(t)
+
+	remoteService := scNewService()
+	f.remoteServiceLister = append(f.remoteServiceLister, remoteService)
+	f.remoteObjects = append(f.remoteObjects, remoteService)
+
+	localService := scNewService()
+	localService.Labels = utils.ResourceLabel
+	// Simulate an already created local service to update
+	localService.Spec.Type = v1.ServiceTypeNodePort
+
+	// Expect to see this local service after run
+	expectService := localService.DeepCopy()
+	expectService.Spec.Ports = []v1.ServicePort{
+		{
+			Name:       portName,
+			Port:       portNum,
+			TargetPort: intstr.FromInt(portNodePort),
+			NodePort:   portNodePort,
+		},
+	}
+
+	// If the local service has a different ports, it needs an update
+	localService.Spec.Ports = []v1.ServicePort{
+		{
+			Name:       portName + "foooo",
+			Port:       portNum,
+			TargetPort: intstr.FromInt(portNodePort + 21),
+			NodePort:   portNodePort + 21,
+		},
+	}
+	f.localObjects = append(f.localObjects, localService)
+
+	f.expectUpdateServiceAction(expectService)
+	f.runNodePort(getKey(remoteService, t))
 }
 
 func TestDeleteService(t *testing.T) {
@@ -249,7 +316,7 @@ func TestDeleteService(t *testing.T) {
 	f.localObjects = append(f.localObjects, localService)
 
 	f.expectDeleteServiceAction(localService)
-	f.run(getKey(remoteService, t))
+	f.runClusterIP(getKey(remoteService, t))
 }
 
 func TestGetLocalAction(t *testing.T) {

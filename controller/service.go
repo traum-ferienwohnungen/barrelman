@@ -45,12 +45,15 @@ type ServiceController struct {
 
 	// queue will queue all services that need to be need to create dummy's for (in local)
 	queue workqueue.RateLimitingInterface
+
+	// Type of the local services to create, defaults to ClusterIP
+	localServiceType v1.ServiceType
 }
 
 func NewServiceController(
 	localClient, remoteClient kubernetes.Interface,
-	remoteInformer coreinformers.ServiceInformer,
-	localInformer coreinformers.ServiceInformer) *ServiceController {
+	remoteInformer coreinformers.ServiceInformer, localInformer coreinformers.ServiceInformer,
+	createNodePortSvc bool) *ServiceController {
 
 	c := &ServiceController{
 		localClient:  localClient,
@@ -60,6 +63,12 @@ func NewServiceController(
 
 	c.remoteServiceLister = remoteInformer.Lister()
 	c.remoteSynced = remoteInformer.Informer().HasSynced
+
+	// localServiceType defaults to ClusterIP
+	c.localServiceType = v1.ServiceTypeClusterIP
+	if createNodePortSvc {
+		c.localServiceType = v1.ServiceTypeNodePort
+	}
 
 	// Enqueue services
 	// Check for labels, annotations and service type via utils.ResponsibleFor to reduce noise in queue
@@ -273,7 +282,7 @@ func (c *ServiceController) syncHandler(key string) (ActionType, error) {
 			}
 		}
 		// Build dummy service ports
-		dummyPorts := getDummyServicePorts(remoteSvc)
+		dummyPorts := c.getDummyServicePorts(remoteSvc)
 		// Create dummy service
 		klog.Infof("performing \"%s\" action for service %s/%s", action, namespace, name)
 		_, err = c.localClient.CoreV1().Services(namespace).Create(&v1.Service{
@@ -284,13 +293,12 @@ func (c *ServiceController) syncHandler(key string) (ActionType, error) {
 			},
 			Spec: v1.ServiceSpec{
 				Ports: dummyPorts,
-				// We want to create ClusterIP services only so Type is hardcoded
-				Type: v1.ServiceTypeClusterIP,
+				Type:  c.localServiceType,
 			},
 		})
 		return action, err
 	case ActionTypeUpdate:
-		dummyPorts := getDummyServicePorts(remoteSvc)
+		dummyPorts := c.getDummyServicePorts(remoteSvc)
 		if utils.ServicePortsEqual(localSvc.Spec.Ports, dummyPorts) {
 			return ActionTypeNone, nil
 		}
@@ -314,14 +322,16 @@ func (c *ServiceController) syncHandler(key string) (ActionType, error) {
 // getDummyServicePorts created a new slice of ServicePort to be used for the local dummy service
 // For each port, the remote service NodePort must be the dummy service target port (so endpoints will
 // point to remote NodePort)
-func getDummyServicePorts(remoteSvc *v1.Service) []v1.ServicePort {
+func (c *ServiceController) getDummyServicePorts(remoteSvc *v1.Service) []v1.ServicePort {
 	dummyPorts := make([]v1.ServicePort, len(remoteSvc.Spec.Ports))
 	for idx, port := range remoteSvc.Spec.Ports {
 		// Ensure we don't modify the input
 		dummyPorts[idx] = *port.DeepCopy()
 		dummyPorts[idx].TargetPort = intstr.FromInt(int(port.NodePort))
-		// Unset NodePort as dummy service will be ClusterIP
-		dummyPorts[idx].NodePort = 0
+		if c.localServiceType != v1.ServiceTypeNodePort {
+			// Unset NodePort
+			dummyPorts[idx].NodePort = 0
+		}
 	}
 	return dummyPorts
 }

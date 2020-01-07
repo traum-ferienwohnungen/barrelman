@@ -63,7 +63,7 @@ Imaging there is cluster X and Y (Nodes Xn and Yn) with barrelman running as Xb 
 * Create Service "foo/bar" (type NodePort) in X
     * Namespace "foo" is created in Y
     * Service "foo/bar" (Type: ClusterIP, targetPort == NodePort of "foo/bar" in X) is created in Y
-    * Endpoint(s) "foo/bar" are created in Y (pointing to Xn:targetPort)
+    * Endpoint(s) "foo/bar" are created in Y (pointing to Xn:nodePort)
 * Change NodePort of service "foo/bar" in X
     * targetPort of service "foo/bar" in Y is updated accordingly
     * Endpoint(s) "foo/bar" in Y are updated accordingly
