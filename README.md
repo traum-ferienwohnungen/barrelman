@@ -49,6 +49,11 @@ Watch for changes of services objects in _remote-cluster_:
     * All service ports of the remote service
 * Delete: Remove dummy service in _local-cluster_ if it was created by barrelman
 
+Services in _local-cluster_ will be created with type ClusterIP by default. If you want to them to be type NodePort
+instead, run _barrelman_ with the `-nodeportsvc` switch (the services will maintain the same NodePort as in
+_remote-cluster_).
+
+
 ### What to expect
 Imaging there is cluster X and Y (Nodes Xn and Yn) with barrelman running as Xb and Yb.
 
