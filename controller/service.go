@@ -304,6 +304,8 @@ func (c *ServiceController) syncHandler(key string) (ActionType, error) {
 		}
 		// Update localSvc with new port(s)
 		localSvc.Spec.Ports = dummyPorts
+		// When barrelman is restarted with -nodeportsvc flag, localSvc may need to change type
+		localSvc.Spec.Type = c.localServiceType
 		// NodeEndpointController will pick this up and update endpoints
 		klog.Infof("performing \"%s\" action for service %s/%s", action, namespace, name)
 		_, err := c.localClient.CoreV1().Services(namespace).Update(localSvc)

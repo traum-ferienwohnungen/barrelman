@@ -275,10 +275,12 @@ func TestUpdateServiceNodePort(t *testing.T) {
 	localService := scNewService()
 	localService.Labels = utils.ResourceLabel
 	// Simulate an already created local service to update
-	localService.Spec.Type = v1.ServiceTypeNodePort
+	localService.Spec.Type = v1.ServiceTypeClusterIP
 
+	// We test for type (to NodePort) and port change
 	// Expect to see this local service after run
 	expectService := localService.DeepCopy()
+	expectService.Spec.Type = v1.ServiceTypeNodePort
 	expectService.Spec.Ports = []v1.ServicePort{
 		{
 			Name:       portName,
@@ -294,7 +296,6 @@ func TestUpdateServiceNodePort(t *testing.T) {
 			Name:       portName + "foooo",
 			Port:       portNum,
 			TargetPort: intstr.FromInt(portNodePort + 21),
-			NodePort:   portNodePort + 21,
 		},
 	}
 	f.localObjects = append(f.localObjects, localService)
