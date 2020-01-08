@@ -40,6 +40,9 @@ spec:
             - "{{ .Values.barrelman.scWorkers }}"
             - -v
             - "{{ .Values.barrelman.verbosity }}"
+            {{- if .Values.barrelman.nodePortSvc }}
+            - -nodeportsvc
+            {{- end }}
           env:
             - name: GOOGLE_APPLICATION_CREDENTIALS
               value: "/gcloud/credentials.json"

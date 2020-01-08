@@ -33,6 +33,7 @@ var (
 	resyncPeriod      = flag.Duration("resync-period", 2*time.Hour, "how often should all nodes be considered \"old\" (and processed again)")
 	necWorkers        = flag.Uint("nec-workers", 4, "number of workers for NodeEndpointController")
 	scWorkers         = flag.Uint("sc-workers", 2, "number of workers for ServiceController")
+	createNodePortSvc = flag.Bool("nodeportsvc", false, "create services of type NodePort in \"local\" cluster (instead of ClusterIP)")
 	// See init() for "ignore-namespace"
 )
 
@@ -144,8 +145,8 @@ func main() {
 
 	serviceController := controller.NewServiceController(
 		localClientset, remoteClientset,
-		remoteInformerFactory.Core().V1().Services(),
-		localInformerFactory.Core().V1().Services(),
+		remoteInformerFactory.Core().V1().Services(), localInformerFactory.Core().V1().Services(),
+		*createNodePortSvc,
 	)
 
 	// Ramp up the informer loops
